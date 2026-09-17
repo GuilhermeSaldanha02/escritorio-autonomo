@@ -2,10 +2,27 @@
 
 - **Data:** 2026-09-17 · **Agente:** Claude (Opus 5) · **Branch:** `feat/m1-fundacao` (saindo de `staging`, que sai de `main`)
 - **Estado:** concluído e validado localmente. **Aguardando revisão do dono. M2 não iniciado.**
+- **Revisão externa (ChatGPT, 2026-09-17 ~03:15):** **M1 considerado concluído**, sem retrabalho — ver §0.
 - **Revisão 2 (mesmo dia):** pendências 2 (encerramento gracioso) e 3 (`/health` com `"error":"Error"`) corrigidas — ver §17a.
 - **Repositório:** só local em `C:\escritorio-autonomo`, sem remoto (decisão do dono).
 
 ---
+
+## 0. Revisão externa
+
+Enviados ao ChatGPT (conversa em que a especificação foi escrita): o ZIP do commit `aba1f77` (`git archive`, sem `.env`/`node_modules`/`dist`) e este relatório.
+
+**Veredito:** "Sim. Considero o Milestone 1 — Fundação concluído." Nenhum item justifica reabrir o M1.
+
+- **Decisões aprovadas explicitamente:** `infrastructure/database`; não criar pacotes vazios; fundadores `ACTIVE`/`IDLE`; 4 tentativas = 1 + `MAX_TASK_RETRIES`; API viva com dependências fora (503); Fastify; migrador próprio; proibições travadas em código (pediu para **preservar**).
+- **Prioridade alta no começo do M2:** Transactional Outbox + dispatcher (ou reconciliação equivalente) para eliminar o evento sem job (pendência 1). Primeira tarefa estrutural do M2.
+- **Não bloqueiam o M2:** CI quando houver remoto; máquina de estados de `tasks`/`opportunities` (é do Orquestrador, M2); `.env` local, containers ligados e limitação de sinais no Windows.
+- **Para o futuro (M5):** generalizar a origem de `REVENUE` no ledger, hoje presa a `opportunity_id` + `external_reference`.
+- **Disciplina recomendada:** implementar um milestone → parar → ZIP + relatório → revisar → só então liberar o próximo.
+
+**Ressalva de honestidade:** o ChatGPT disse ter aberto o ZIP e inspecionado migration, Governor, Event Bus, `/health`, Worker, seed, Compose e README, mas todas as citações da resposta apontam para este relatório. Trate como aprovação de revisor, não como auditoria independente do código.
+
+**Situação:** M1 aprovado pelo revisor. **M2 aguarda autorização do dono.** Nada integrado em `staging`/`main`.
 
 ## 1. O que foi implementado
 
@@ -267,7 +284,7 @@ Política do pnpm 11 registrada em `pnpm-workspace.yaml`: `esbuild` pode rodar s
 
 ## 17. Pendências conhecidas
 
-1. **Evento sem job se o Redis cair entre persistir e enfileirar.** O `EventBus` grava primeiro e enfileira depois; nessa janela o erro sobe para a API (500) e o evento `TEST_JOB_REQUESTED` fica sem job. Correção natural é um outbox reconciliado pelo Orquestrador (M2/M6).
+1. **Evento sem job se o Redis cair entre persistir e enfileirar.** → confirmada pela revisão externa como **primeira tarefa estrutural do M2** (Transactional Outbox). O `EventBus` grava primeiro e enfileira depois; nessa janela o erro sobe para a API (500) e o evento `TEST_JOB_REQUESTED` fica sem job. Correção natural é um outbox reconciliado pelo Orquestrador (M2/M6).
 2. ~~`/health` com Redis fora mostra `"error":"Error"`~~ → **resolvida**, ver §17a.
 3. ~~Encerramento gracioso não exercitado~~ → **resolvida**, ver §17a. Resíduo: no Windows o sinal enviado por outro processo não chega ao handler (limitação do SO).
 4. **Sem CI.** O gate hoje é o hook local. A diretriz prevê `.github/workflows/ci.yml` quando houver remoto.
