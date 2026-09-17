@@ -23,7 +23,7 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 1. ✅ **Transactional Outbox** — evento e pedido de job na mesma transação; dispatcher no Worker publica no BullMQ. Elimina o evento sem job (pendência 1 do M1).
 2. ✅ **Máquinas de estado** de oportunidade (§11) e tarefa — validação pura em código (`packages/shared/src/lifecycle.ts`). **Falta:** transição condicional atômica no banco (`UPDATE ... WHERE status = $from`) na mesma transação do evento — isso é trabalho do passo 5 (Orquestrador), não deste passo.
 3. ✅ **Contratos §13** validados (zod) e agentes determinísticos em `packages/agents`.
-4. **Sandbox Manager** em `packages/tools`: container descartável sem rede, com teto de CPU/RAM/disco/pids/tempo.
+4. ✅ **Sandbox Manager** em `packages/tools`: container descartável sem rede, com teto de CPU/RAM/disco/pids/tempo.
 5. **Orquestrador** no Worker: cada passo grava transição + evento + próximo job atomicamente.
 6. **API de simulação** e consulta da linha do tempo.
 
@@ -38,7 +38,7 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 | 5 | Revisor valida em sandbox **independente** da do Desenvolvedor (container novo, código reconstruído do diff) | teste + evento com ids de sandbox distintos |
 | 6 | Revisão reprovada volta ao Desenvolvedor; após `MAX_TASK_RETRIES` a tarefa vira `BLOCKED` com `TASK_BLOCKED` | teste de integração |
 | 7 | Oportunidade que exige capacidade proibida gera `ACTION_BLOCKED` e é rejeitada, sem criar tarefa | teste de integração |
-| 8 | Sandbox sem rede, sem capabilities, não-root, com teto de memória/CPU/pids/disco e tempo máximo | teste que tenta rede e estouro de tempo |
+| 8 | Sandbox sem rede, sem capabilities, não-root, com teto de memória/CPU/pids/disco e tempo máximo | ✅ `tests/integration/sandbox.test.ts` (14 testes; mutação confirmada em rede e não-root) |
 | 9 | Paralelismo respeita `MAX_PARALLEL_TASKS` | configuração do Worker + teste |
 | 10 | Estado dos agentes muda durante o ciclo (`AGENT_STATE_CHANGED`) — base para o Office | teste |
 | 11 | typecheck, lint, test e build passam de estado limpo; R$0 | validação final |
@@ -68,6 +68,17 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 - Fórmula de score do Diretor é provisória e documentada como tal — dado real de mercado só chega no M4 (Caçador real); nenhum dado de negócio foi inventado, é heurística de infraestrutura para provar o fluxo.
 - **Prova:** 33 testes unitários (contratos rejeitam payload malformado/campo extra; Diretor determinístico e sensível a `automation_allowed`/`reward_verified`/score; Governor bloqueia `EXECUTE` proposto pelo Diretor quando a capacidade exigida é proibida; Revisor reprova com build quebrado, teste falho ou qualquer alerta de segurança; retries até `MAX_TASK_RETRIES` voltam ao Desenvolvedor, depois `BLOCKED`).
 - **Ainda não wired a nada:** este pacote não fala com o Event Bus, o banco nem o Worker. É lógica pura, testável sem Docker. A ligação (persistir cada transição, publicar eventos, criar a Task real) é o Orquestrador — passo 5.
+
+### 4. Sandbox Manager — concluído (`6f1b034`)
+
+- `packages/tools`: `SandboxManager.run()` cria um container novo por chamada (dockerode), sempre remove ao final. `NetworkMode: none`, `CapDrop: ALL`, `SecurityOpt: no-new-privileges`, `ReadonlyRootfs: true`, `User: 65534:65534` (nobody), `/workspace` em tmpfs com teto de tamanho, `Memory`/`MemorySwap`/`NanoCpus`/`PidsLimit` no HostConfig.
+- **Truque central:** arquivos e comando viajam só por variável de ambiente (JSON + base64), nunca interpolados em texto de shell — zero risco de injeção via nome de arquivo, conteúdo ou argumento. O shell grava os arquivos com um `node -e` de script fixo e só então faz `exec "$0" "$@"`, trocando de processo para o comando real: é por isso que o comando vira o PID 1 do container, e o OOM killer / SIGKILL de timeout / código de saída refletem *o comando*, não um intermediário nosso.
+- **Prova:** 14 testes de integração com Docker real — stdout/stderr separados, seed de arquivo (raiz e subdiretório), código de saída propagado, sem rede, não-root, estoura memória (`OOMKilled`), estoura disco (tmpfs, `ENOSPC`), estoura tempo (`timedOut`), contém fork bomb (`pidsLimit`), sempre remove o container, dois runs nunca compartilham `/workspace`, limites inválidos recusados antes de tocar o Docker.
+- **Mutação confirmada:** `NetworkMode: bridge` fez o teste de rede falhar 3/3 vezes; `User: root` fez o teste de não-root falhar.
+- **Duas descobertas de ambiente (Docker Desktop + WSL2 nesta máquina), documentadas no código/teste, não corrigidas por serem do ambiente, não do Sandbox Manager:**
+  1. `pidsLimit` abaixo de ~10 faz o próprio `spawn()` do Node **travar** em vez de falhar (fork() nunca retorna erro) — quem mata o processo nesse caso é o timeout do Sandbox Manager, não o próprio script. O teste usa `pidsLimit: 10`, que já contém a fork bomb (37/40 falharam) sem esse efeito.
+  2. Testar "sem rede" com `fetch('http://...')` é frágil: sem interface de rede, a resolução de nome não erra rápido, **trava até o `AbortSignal`** — e por depender só do relógio, um teste assim deu falso-negativo quando a rede do host estava momentaneamente lenta (visto nesta sessão: bridge com internet real, mas conexão >3s, reportando "sem rede" por engano). Corrigido testando uma conexão TCP direta por IP (sem DNS): com `--network none` o kernel nem tenta rotear, e o erro (`ENETUNREACH`) chega em milissegundos — determinístico nas duas direções.
+- **Ainda não wired ao Desenvolvedor/Revisor.** `runMockDeveloperTask` (passo 3) continua mock; ligar o Desenvolvedor a uma sandbox real e o Revisor a uma segunda sandbox independente (critério 5) é trabalho do Orquestrador — passo 5.
 
 ## Fora do escopo do M2
 
