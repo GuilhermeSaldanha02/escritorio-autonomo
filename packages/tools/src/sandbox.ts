@@ -75,8 +75,12 @@ function validateLimits(limits: SandboxLimits): void {
       throw new SandboxConfigError(`${name} deve ser um número finito e positivo (recebido: ${value})`);
     }
   }
-  if (!Number.isFinite(limits.cpuFraction) || limits.cpuFraction <= 0) {
-    throw new SandboxConfigError(`cpuFraction deve ser um número finito e positivo (recebido: ${limits.cpuFraction})`);
+  // Docker recusa NanoCpus abaixo de 1e6 (0.001 CPU) -- falha aqui, antes do Docker, com a mesma clareza das outras validacoes.
+  const MIN_CPU_FRACTION = 0.001;
+  if (!Number.isFinite(limits.cpuFraction) || limits.cpuFraction < MIN_CPU_FRACTION) {
+    throw new SandboxConfigError(
+      `cpuFraction deve ser um número finito >= ${MIN_CPU_FRACTION} (recebido: ${limits.cpuFraction})`,
+    );
   }
 }
 

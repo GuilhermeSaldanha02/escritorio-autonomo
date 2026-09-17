@@ -150,6 +150,43 @@ describe('SandboxManager', () => {
     expect(failures).toBeGreaterThan(20); // ~37/40 falharam no ambiente de referência
   }, 30_000);
 
+  it('aplica o teto de CPU no container (NanoCpus chega ao Docker)', async () => {
+    // run() sempre remove o container ao final, então não dá para inspecionar
+    // depois que a Promise resolve. Em vez de um benchmark de desempenho (que
+    // seria lento e flaky), listamos containers pelo prefixo do nome enquanto
+    // o comando ainda roda (ele dorme um pouco de propósito) e inspecionamos
+    // o HostConfig real que o Docker recebeu — prova que o valor chegou, não
+    // quanto CPU o kernel de fato entregou.
+    const cpuFraction = 0.25;
+    const runPromise = manager.run({
+      command: ['node', '-e', 'setTimeout(() => {}, 2000)'],
+      limits: { memoryBytes: 32 * 1024 * 1024, cpuFraction, timeoutMs: 10_000 },
+    });
+
+    let hostConfig: { NanoCpus?: number } | undefined;
+    for (let attempt = 0; attempt < 20 && !hostConfig; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const containers = await docker.listContainers({
+        all: true,
+        filters: JSON.stringify({ name: ['escritorio-sandbox-'] }),
+      });
+      const found = containers[0];
+      if (found) {
+        const info = await docker.getContainer(found.Id).inspect().catch(() => undefined);
+        hostConfig = info?.HostConfig;
+      }
+    }
+
+    await runPromise;
+    expect(hostConfig?.NanoCpus).toBe(Math.round(cpuFraction * 1_000_000_000));
+  }, 30_000);
+
+  it('rejeita cpuFraction abaixo do mínimo que o Docker aceita (0.001)', async () => {
+    await expect(
+      manager.run({ command: ['node', '-e', '1'], limits: { cpuFraction: 0.0001 } }),
+    ).rejects.toThrow(SandboxConfigError);
+  });
+
   it('remove o container ao final — nunca sobra sandbox órfã', async () => {
     const result = await manager.run({
       command: ['node', '-e', 'process.exit(0)'],
