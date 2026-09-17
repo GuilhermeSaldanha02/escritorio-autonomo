@@ -1,14 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { Queryable } from '@escritorio/database';
-import { type AiMode, describeError, withTimeout } from '@escritorio/shared';
+import { type AiMode, describeError, TimeoutError, withTimeout } from '@escritorio/shared';
 
 const CHECK_TIMEOUT_MS = 2_000;
 
 export interface DependencyCheck {
   status: 'connected' | 'disconnected';
   latencyMs: number;
-  /** Só o código/nome do erro: detalhes internos ficam no log, não na resposta. */
+  /** Código estável (ver `dependencyErrorCode`). A mensagem do erro fica só no log. */
   error?: string;
 }
 
@@ -33,6 +33,17 @@ interface CheckOutcome {
   cause?: unknown;
 }
 
+/**
+ * Código seguro e estável para a resposta HTTP: `TIMEOUT`, o código do sistema
+ * ou do driver quando existe (`ECONNREFUSED`, `28P01`…), senão `UNAVAILABLE`.
+ * Nunca a mensagem, que pode carregar host, usuário ou detalhe interno.
+ */
+export function dependencyErrorCode(error: unknown): string {
+  if (error instanceof TimeoutError) return 'TIMEOUT';
+  const { code } = describeError(error);
+  return code !== undefined && /^[A-Z0-9_]+$/.test(code) ? code : 'UNAVAILABLE';
+}
+
 async function check(label: string, probe: () => Promise<unknown>): Promise<CheckOutcome> {
   const startedAt = performance.now();
   const elapsed = () => Math.round(performance.now() - startedAt);
@@ -40,9 +51,8 @@ async function check(label: string, probe: () => Promise<unknown>): Promise<Chec
     await withTimeout(probe(), CHECK_TIMEOUT_MS, label);
     return { report: { status: 'connected', latencyMs: elapsed() } };
   } catch (error) {
-    const described = describeError(error);
     return {
-      report: { status: 'disconnected', latencyMs: elapsed(), error: described.code ?? described.name },
+      report: { status: 'disconnected', latencyMs: elapsed(), error: dependencyErrorCode(error) },
       cause: error,
     };
   }
