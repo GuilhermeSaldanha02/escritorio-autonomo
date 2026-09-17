@@ -63,7 +63,11 @@ e2a8dc5 feat: Adiciona Transactional Outbox com dispatcher no Worker
 
 Um commit fora dessa lista de código, deliberadamente separado: `01dca54` — emenda do dono à §16 (política Free-First), documentação apenas, sem impacto no comportamento do M2 (ver §7).
 
-Commit adicional desta segunda versão, com as duas correções da revisão de fechamento (§4a): `docs: Fecha o M2 com relatório, ressalvas e ZIP para revisão externa` (documentação da primeira versão) seguido do commit de código com `TASK_WAITING_SLOT` + crash recovery.
+Commits adicionais desta segunda versão, com as duas correções da revisão de fechamento (§4a):
+```
+392b67d fix(worker): Corrige starvation de MAX_PARALLEL_TASKS e prova crash recovery
+bb820a1 docs: Fecha o M2 com relatório, ressalvas e ZIP para revisão externa (1ª versão)
+```
 
 ## 3. Critérios de aceite (`docs/M2-PLANO.md`)
 
