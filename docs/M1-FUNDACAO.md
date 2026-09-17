@@ -284,7 +284,7 @@ Política do pnpm 11 registrada em `pnpm-workspace.yaml`: `esbuild` pode rodar s
 
 ## 17. Pendências conhecidas
 
-1. **Evento sem job se o Redis cair entre persistir e enfileirar.** → confirmada pela revisão externa como **primeira tarefa estrutural do M2** (Transactional Outbox). O `EventBus` grava primeiro e enfileira depois; nessa janela o erro sobe para a API (500) e o evento `TEST_JOB_REQUESTED` fica sem job. Correção natural é um outbox reconciliado pelo Orquestrador (M2/M6).
+1. ~~Evento sem job se o Redis cair entre persistir e enfileirar~~ → **resolvida no M2** com Transactional Outbox (migration `0002_outbox`) — ver `docs/M2-PLANO.md`. O `EventBus` grava primeiro e enfileira depois; nessa janela o erro sobe para a API (500) e o evento `TEST_JOB_REQUESTED` fica sem job. Correção natural é um outbox reconciliado pelo Orquestrador (M2/M6).
 2. ~~`/health` com Redis fora mostra `"error":"Error"`~~ → **resolvida**, ver §17a.
 3. ~~Encerramento gracioso não exercitado~~ → **resolvida**, ver §17a. Resíduo: no Windows o sinal enviado por outro processo não chega ao handler (limitação do SO).
 4. **Sem CI.** O gate hoje é o hook local. A diretriz prevê `.github/workflows/ci.yml` quando houver remoto.

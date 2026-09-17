@@ -1,4 +1,3 @@
-import type { Queue } from 'bullmq';
 import Fastify from 'fastify';
 import type { Redis } from 'ioredis';
 import type { Queryable } from '@escritorio/database';
@@ -7,12 +6,12 @@ import type { Governor } from '@escritorio/governor';
 import type { AiMode, Logger } from '@escritorio/shared';
 import { diagnosticsRoutes } from './routes/diagnostics.js';
 import { healthRoutes } from './routes/health.js';
+import { simulationsRoutes } from './routes/simulations.js';
 
 export interface ApiDeps {
   logger: Logger;
   db: Queryable;
   redis: Redis;
-  queue: Queue;
   bus: EventBus;
   store: EventStore;
   governor: Governor;
@@ -30,7 +29,11 @@ export async function buildServer(deps: ApiDeps) {
   await app.register(diagnosticsRoutes, {
     bus: deps.bus,
     store: deps.store,
-    queue: deps.queue,
+    governor: deps.governor,
+  });
+  await app.register(simulationsRoutes, {
+    db: deps.db,
+    bus: deps.bus,
     governor: deps.governor,
   });
 

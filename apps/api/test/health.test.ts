@@ -1,8 +1,7 @@
-import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildServer, dependencyErrorCode } from '@escritorio/api';
-import type { Queryable } from '@escritorio/database';
+import type { Pool, Queryable } from '@escritorio/database';
 import { EventBus, EventStore } from '@escritorio/events';
 import { Governor, loadConstitution } from '@escritorio/governor';
 import { createLogger, TimeoutError } from '@escritorio/shared';
@@ -18,8 +17,7 @@ async function serverWith(dbProbe: Probe, redisProbe: Probe) {
     logger: createLogger('api-test', 'silent'),
     db,
     redis: { ping: redisProbe } as unknown as Redis,
-    queue: {} as Queue,
-    bus: new EventBus(store),
+    bus: new EventBus(db as unknown as Pool),
     store,
     governor: new Governor(loadConstitution()),
     aiMode: 'mock',

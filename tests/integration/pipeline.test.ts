@@ -1,70 +1,26 @@
-import type { Job, Queue, Worker } from 'bullmq';
-import type { Redis } from 'ioredis';
+import type { Job } from 'bullmq';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildServer } from '@escritorio/api';
-import { seedInitialAgents, type Pool } from '@escritorio/database';
-import {
-  createRedisConnection,
-  createSystemQueue,
-  EventBus,
-  EventStore,
-  type StoredEvent,
-} from '@escritorio/events';
-import { Governor, loadConstitution } from '@escritorio/governor';
-import { createDiagnosticProcessor, createSystemWorker } from '@escritorio/worker';
-import { createTestPool, logger, resetDatabase, testRedisUrl, uniqueQueuePrefix, waitFor } from './support.js';
+import type { StoredEvent } from '@escritorio/events';
+import { createDiagnosticProcessor } from '@escritorio/worker';
+import { startRuntime, type TestRuntime } from './runtime.js';
+import { logger, waitFor } from './support.js';
 
 /**
- * Ponta a ponta com serviços reais: HTTP (inject) → evento persistido →
- * BullMQ/Redis → Worker → evento persistido. Nada de PostgreSQL ou Redis simulado.
+ * Ponta a ponta com serviços reais: HTTP (inject) → evento + outbox na mesma
+ * transação → dispatcher → BullMQ/Redis → Worker → evento persistido.
  */
-let pool: Pool;
-let producer: Redis;
-let consumer: Redis;
-let queue: Queue;
-let worker: Worker;
-let app: Awaited<ReturnType<typeof buildServer>>;
-let store: EventStore;
-const governor = new Governor(loadConstitution());
+let rt: TestRuntime;
 
 beforeAll(async () => {
-  pool = createTestPool();
-  await resetDatabase(pool);
-  await seedInitialAgents(pool);
-
-  const prefix = uniqueQueuePrefix();
-  producer = createRedisConnection(testRedisUrl(), 'producer', 'integration-api');
-  consumer = createRedisConnection(testRedisUrl(), 'consumer', 'integration-worker');
-  queue = createSystemQueue(producer, prefix);
-  store = new EventStore(pool);
-
-  worker = createSystemWorker({ connection: consumer, prefix, store, governor, logger });
-  await worker.waitUntilReady();
-
-  app = await buildServer({
-    logger,
-    db: pool,
-    redis: producer,
-    queue,
-    bus: new EventBus(store),
-    store,
-    governor,
-    aiMode: 'mock',
-  });
+  rt = await startRuntime();
 });
 
 afterAll(async () => {
-  await app?.close();
-  await worker?.close();
-  await queue?.obliterate({ force: true });
-  await queue?.close();
-  await producer?.quit();
-  await consumer?.quit();
-  await pool?.end();
+  await rt?.close();
 });
 
 async function eventsFor(correlationId: string): Promise<StoredEvent[]> {
-  const response = await app.inject({ method: 'GET', url: `/events?correlationId=${correlationId}` });
+  const response = await rt.api.app.inject({ method: 'GET', url: `/events?correlationId=${correlationId}` });
   expect(response.statusCode).toBe(200);
   return response.json<{ events: StoredEvent[] }>().events;
 }
@@ -81,7 +37,7 @@ async function eventsUntil(correlationId: string, type: string): Promise<StoredE
 
 describe('GET /health com serviços reais', () => {
   it('responde 200 com PostgreSQL e Redis conectados', async () => {
-    const response = await app.inject({ method: 'GET', url: '/health' });
+    const response = await rt.api.app.inject({ method: 'GET', url: '/health' });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       status: 'ok',
@@ -92,8 +48,8 @@ describe('GET /health com serviços reais', () => {
 });
 
 describe('job de diagnóstico', () => {
-  it('atravessa API → fila → Worker e gera evento persistido', async () => {
-    const response = await app.inject({
+  it('atravessa API → outbox → fila → Worker e gera evento persistido', async () => {
+    const response = await rt.api.app.inject({
       method: 'POST',
       url: '/diagnostics/test-jobs',
       payload: { message: 'fundação M1' },
@@ -110,15 +66,22 @@ describe('job de diagnóstico', () => {
     expect(events.map((event) => event.type)).toEqual(['TEST_JOB_REQUESTED', 'TEST_JOB_COMPLETED']);
     expect(events[1]?.payload).toMatchObject({ jobId, message: 'fundação M1', attempt: 1 });
 
-    // Confere direto na tabela, sem passar pela API.
-    const { rows } = await pool.query('SELECT type FROM events WHERE correlation_id = $1 ORDER BY occurred_at', [
-      correlationId,
+    // Confere direto nas tabelas, sem passar pela API.
+    const { rows } = await rt.api.pool.query(
+      `SELECT e.type, o.dispatched_at IS NOT NULL AS dispatched
+          FROM events e LEFT JOIN outbox o ON o.event_id = e.id
+        WHERE e.correlation_id = $1 ORDER BY e.occurred_at`,
+      [correlationId],
+    );
+    expect(rows).toEqual([
+      { type: 'TEST_JOB_REQUESTED', dispatched: true },
+      // O evento de conclusão não pede job: não tem linha no outbox.
+      { type: 'TEST_JOB_COMPLETED', dispatched: false },
     ]);
-    expect(rows).toEqual([{ type: 'TEST_JOB_REQUESTED' }, { type: 'TEST_JOB_COMPLETED' }]);
   });
 
   it('Governor bloqueia ação proibida no Worker e registra ACTION_BLOCKED', async () => {
-    const response = await app.inject({
+    const response = await rt.api.app.inject({
       method: 'POST',
       url: '/diagnostics/test-jobs',
       payload: { message: 'tentar operar trading', requestedCapability: 'TRADING' },
@@ -134,8 +97,8 @@ describe('job de diagnóstico', () => {
     });
   });
 
-  it('rejeita capacidade fora do catálogo antes de enfileirar', async () => {
-    const response = await app.inject({
+  it('rejeita capacidade fora do catálogo antes de gravar qualquer coisa', async () => {
+    const response = await rt.api.app.inject({
       method: 'POST',
       url: '/diagnostics/test-jobs',
       payload: { message: 'x', requestedCapability: 'FORMAT_DISK' },
@@ -144,7 +107,7 @@ describe('job de diagnóstico', () => {
   });
 
   it('reprocessar o mesmo job não duplica o evento', async () => {
-    const process = createDiagnosticProcessor({ store, governor, logger });
+    const process = createDiagnosticProcessor({ store: rt.worker.store, governor: rt.governor, logger });
     const correlationId = crypto.randomUUID();
     const job = {
       id: crypto.randomUUID(),
@@ -158,7 +121,7 @@ describe('job de diagnóstico', () => {
     const second = await process({ ...job, attemptsMade: 1 } as Job);
     expect(second).toEqual(first);
 
-    const { rows } = await pool.query('SELECT count(*)::int AS total FROM events WHERE correlation_id = $1', [
+    const { rows } = await rt.worker.pool.query('SELECT count(*)::int AS total FROM events WHERE correlation_id = $1', [
       correlationId,
     ]);
     expect(rows[0]).toEqual({ total: 1 });
