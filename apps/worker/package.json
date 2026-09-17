@@ -1,0 +1,26 @@
+{
+  "name": "@escritorio/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch --conditions=source src/main.ts",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@escritorio/database": "workspace:*",
+    "@escritorio/events": "workspace:*",
+    "@escritorio/governor": "workspace:*",
+    "@escritorio/shared": "workspace:*",
+    "bullmq": "^6.3.6",
+    "ioredis": "5.11.1"
+  }
+}
