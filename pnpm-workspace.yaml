@@ -1,0 +1,7 @@
+packages:
+  - apps/api
+  - apps/worker
+  - packages/*
+  - infrastructure/database
+allowBuilds:
+  esbuild: true

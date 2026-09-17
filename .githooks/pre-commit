@@ -1,0 +1,7 @@
+#!/bin/sh
+# Pré-commit bloqueante (diretriz §4): lint, typecheck e testes unitários.
+# Testes de integração ficam fora porque exigem Docker; rode `pnpm test` antes do PR.
+set -e
+pnpm run --silent lint
+pnpm run --silent typecheck
+pnpm run --silent test:unit

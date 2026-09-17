@@ -1,0 +1,18 @@
+{
+  "//": "Typecheck do monorepo inteiro num único programa. A condição 'source' resolve os pacotes internos para src/, então não depende de build prévio.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "customConditions": ["source"]
+  },
+  "include": [
+    "apps/*/src",
+    "apps/*/test",
+    "packages/*/src",
+    "packages/*/test",
+    "infrastructure/database/src",
+    "infrastructure/database/test",
+    "tests",
+    "vitest.*.config.ts"
+  ]
+}
