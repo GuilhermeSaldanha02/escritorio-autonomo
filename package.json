@@ -33,6 +33,7 @@
     "@escritorio/events": "workspace:*",
     "@escritorio/governor": "workspace:*",
     "@escritorio/shared": "workspace:*",
+    "@escritorio/tools": "workspace:*",
     "@escritorio/worker": "workspace:*",
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.13.5",

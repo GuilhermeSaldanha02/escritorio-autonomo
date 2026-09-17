@@ -4,7 +4,7 @@ Vale para qualquer agente neste repositório (Claude, Codex, Antigravity…). Re
 
 ## 1. Fonte de verdade
 
-- Produto, arquitetura, escopo e regras: [`docs/especificacao-v1.docx`](docs/especificacao-v1.docx).
+- Produto, arquitetura, escopo e regras: [`docs/especificacao-v1.docx`](docs/especificacao-v1.docx) + [`docs/ESPECIFICACAO-ALTERACOES.md`](docs/ESPECIFICACAO-ALTERACOES.md) (emendas do dono depois da leitura inicial — prevalece sobre o `.docx` quando divergir; o `.docx` fica intocado como registro do V1 original).
 - Git: diretriz v9 (`GuilhermeSaldanha02/diretriz`), adaptada abaixo.
 - Estado do trabalho: bloco **ESTADO ATUAL** (§4) e [`docs/M1-FUNDACAO.md`](docs/M1-FUNDACAO.md).
 
@@ -31,12 +31,12 @@ Não altere a arquitetura em silêncio. Se uma decisão da especificação for i
 
 > Sobrescrever a cada sessão; o histórico é o `git log`.
 
-- **Última sessão:** 2026-09-17 · agente: claude · branch: `feat/m1-fundacao`
-- **Em andamento:** M1 implementado, pendências 2 e 3 corrigidas e **M1 aprovado na revisão externa (ChatGPT)** — `docs/M1-FUNDACAO.md` §0
+- **Última sessão:** 2026-09-17 (tarde) · agente: claude · branch: `feat/m2-primeiro-ciclo`
+- **Em andamento:** M2 completo, corrigido e **aprovado pela revisão externa** ("M2 — APROVADO PARA FECHAMENTO ✅", ChatGPT, 2026-09-17). Todos os 6 passos, os 11 critérios de aceite e as seis propriedades de fechamento (`REDIS DOWN`, `DUPLICATE DELIVERY`, `RETRY`, `REVIEW FAILED`, `FORBIDDEN ACTION`, `CRASH RECOVERY`) têm prova reexecutável em `docs/M2-PLANO.md`/`docs/M2-PRIMEIRO-CICLO.md`. M1 já está em `staging`/`main` (tag `m1-fundacao`). **M2 ainda não integrado em `staging`/`main` — falta só a autorização explícita do dono para o merge.** M3 continua não iniciado.
 - **Não commitado:** nada
-- **Bloqueado / a decidir:** merge `feat/m1-fundacao` → `staging` → `main` depende da revisão do dono; repositório só local (sem remoto)
-- **Próximo passo:** dono autoriza (ou não) o M2 e a integração em `staging`/`main`. Se autorizado, a primeira tarefa do M2 é o Transactional Outbox. **Não iniciar o M2 sem autorização do dono.**
-- **Para o outro agente saber:** antes de provar algo com a fila, confirme que não há outro Worker consumindo; no Windows um SIGTERM vindo de outro processo mata na hora, então prove sinais em Linux; testes de integração exigem `pnpm services:up`; a máquina de desenvolvimento tem 8 GB de RAM — não subir serviços além de PostgreSQL e Redis sem necessidade.
+- **Bloqueado / a decidir:** só falta a autorização do dono para mergear `feat/m2-primeiro-ciclo`. Validação completa (typecheck, lint, 89 unitários, 58 integração, build limpo de `dist/` zerado) passa de estado limpo.
+- **Próximo passo:** aguardar o dono autorizar o merge de `feat/m2-primeiro-ciclo` em `staging`; depois disso, aguardar autorização separada para iniciar o M3 (regra explícita da especificação: não avançar automaticamente entre milestones).
+- **Para o outro agente saber:** a revisão de fechamento do M2 pediu duas correções depois da primeira versão do relatório — `TASK_WAITING_SLOT` (falta de slot no Governor agora é espera operacional, não falha, não consome `MAX_TASK_RETRIES`) e uma prova de `CRASH RECOVERY` via `worker.close(true)` + stalled-job do BullMQ (decisão explícita da revisão: sem SIGKILL de processo real do SO, por restrição de RAM da máquina de 8GB — ressalva registrada nos dois documentos, não escondida). Ambas em `docs/M2-PLANO.md` §7 e `docs/M2-PRIMEIRO-CICLO.md` §4a, com testes e mutação confirmada. Antes de provar algo com a fila, confirme que não há outro Worker consumindo; no Windows um SIGTERM vindo de outro processo mata na hora, então prove sinais em Linux; testes de integração exigem `pnpm services:up`; confira a RAM livre antes de subir containers de sandbox ou Workers extras — esta sessão chegou a ~245MB livres e precisou pausar duas vezes. `docs/M2-PLANO.md` tem uma seção "Revisão externa antes do passo 5" com decisões de design que valem para o M2 inteiro. `events.occurred_at` usa `clock_timestamp()`, não `now()` (migration 0004) — mesma lição do outbox: `now()` é o início da transação, não o instante da escrita; se algo mais no projeto depender de ordem temporal precisa dessa mesma checagem.
 
 ## 5. Portões que não se pulam
 

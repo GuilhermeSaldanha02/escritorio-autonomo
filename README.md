@@ -90,7 +90,7 @@ apps/
 packages/
   shared/         Configuração validada (zod), logger JSON (pino), catálogo de agentes
   governor/       Constituição + Governor determinístico (não é IA)
-  events/         Catálogo de eventos, EventStore append-only, EventBus, filas
+  events/         Catálogo de eventos, EventStore append-only, EventBus + Transactional Outbox, filas
 infrastructure/
   database/       Pool, migrador reversível, seed e CLI (@escritorio/database)
     migrations/   Pares NNNN_nome.up.sql / .down.sql
@@ -108,7 +108,8 @@ Pacotes planejados na especificação e ainda não criados (entram quando o mile
 - **Governor por código, não por prompt.** `config/constitution.yaml` é validado na carga; qualquer proibição da V1 (`ALLOW_TRADING`, `DIRECT_OUTREACH`, …) marcada como `true` impede o sistema de subir. A constituição carregada é congelada em memória.
 - **Free-First.** `AI_MODE` diferente de `mock` é recusado até o AI Gateway existir (M3). Chamadas mock não podem ter custo (constraint no banco).
 - **Auditoria.** `events` e `financial_ledger` são append-only por trigger. Receita exige oportunidade e comprovante externo. Saldo nunca é armazenado.
-- **Retry sem duplicidade.** Eventos gravados por jobs usam chave de idempotência derivada do `jobId`.
+- **Evento e job atômicos.** O evento e o pedido de job são gravados na mesma transação (tabela `outbox`); o dispatcher do Worker publica no BullMQ. Com o Redis fora, a API continua aceitando pedidos e nada se perde.
+- **Retry sem duplicidade.** Eventos gravados por jobs usam chave de idempotência derivada do `jobId`; a reentrega do outbox reaproveita o mesmo `jobId`.
 - **Segredos.** Somente `.env.example` é versionado; o logger mascara URLs de conexão.
 
 ## Git

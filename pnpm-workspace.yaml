@@ -10,3 +10,7 @@ allowBuilds:
   esbuild: true
   # Acelerador nativo opcional do msgpackr (via BullMQ); a versão JS pura basta.
   msgpackr-extract: false
+  # Transitivas do dockerode (transporte SSH remoto e build via BuildKit) — não usamos nenhum dos dois; sem build nativo.
+  ssh2: false
+  cpu-features: false
+  protobufjs: false
