@@ -1,7 +1,7 @@
 # Relatório — Milestone 2: Primeiro Ciclo
 
 - **Data:** 2026-09-17 · **Agente:** Claude (Sonnet 5) · **Branch:** `feat/m2-primeiro-ciclo` (saindo de `staging`)
-- **Estado:** concluído e validado localmente, com as duas correções exigidas pela revisão de fechamento já aplicadas (§4a). **Aguardando veredito final da revisão externa (ChatGPT) e autorização do dono. Nada integrado em `staging`/`main`. M3 não iniciado.**
+- **Estado:** concluído, validado localmente, com as duas correções exigidas pela revisão de fechamento aplicadas (§4a) e **aprovado pela revisão externa** ("M2 — APROVADO PARA FECHAMENTO ✅", 2026-09-17). **Aguardando autorização explícita do dono para merge em `staging`/`main`. M3 ainda não iniciado.**
 - **Autorização de início:** dono, 2026-09-17, após aprovação do M1 na revisão externa.
 - **Consulta intermediária (ChatGPT, antes do passo 5):** orientação recebida e registrada em `docs/M2-PLANO.md` (transições atômicas, um job por transição pesada, `MAX_PARALLEL_TASKS` como garantia V1-single-worker, terminologia snapshot+hash, e a barra de seis propriedades usada abaixo).
 - **Revisão de fechamento (ChatGPT, 2026-09-17):** primeira versão deste relatório + ZIP levados à revisão. Veredito: arquitetura e fluxo principal aprovados, mas dois pontos bloqueantes antes de fechar — `MAX_PARALLEL_TASKS` (starvation) e `CRASH RECOVERY` (sem prova). Ambos corrigidos e reprovados nesta versão — ver §4a.
@@ -111,6 +111,8 @@ A primeira versão deste relatório (com `CRASH` marcado como gap declarado e `M
 
 **Validação após as duas correções:** typecheck limpo, lint limpo, 89 unitários (inalterados), 58 integração (57 → reescreveu o teste do critério 9 no lugar + 1 teste novo de crash), build limpo de `dist/` zerado em todos os 8 pacotes.
 
+**Veredito final da revisão externa (ChatGPT, 2026-09-17), depois de revisar a segunda versão do relatório e inspecionar o ZIP:** *"M2 — APROVADO PARA FECHAMENTO ✅. As duas pendências que impediram meu fechamento anterior foram resolvidas [...] confirmei no código do ZIP que o teste espera explicitamente o stalled do Worker B. Portanto, não está apenas inferindo recuperação porque eventualmente a task terminou. A ressalva também ficou corretamente documentada [...]"*
+
 ## 5. Gaps latentes conhecidos (não bloqueiam o M2, registrados para depois)
 
 - **Diretor `BACKLOG`/`INVESTIGATE`:** a oportunidade fica parada em `EVALUATING` sem reavaliação futura — fora do escopo do §19 (provar o fluxo feliz e os bloqueios, não o backlog).
@@ -158,4 +160,4 @@ M2 implementado e validado localmente — todos os 6 passos e os 11 critérios d
 
 Esta é a segunda versão do relatório, depois de uma rodada de correções pedida pela própria revisão externa (§4a): `TASK_WAITING_SLOT` corrigiu o starvation do critério 9, e `CRASH RECOVERY` ganhou prova funcional via `worker.close(true)` + stalled job do BullMQ.
 
-**Nada foi integrado em `staging`/`main`. Nenhum trabalho de M3 foi iniciado.** Este relatório, junto com o ZIP do commit atual (`git archive`, sem `.env`/`node_modules`/`dist`), vai para a mesma conversa do ChatGPT usada na definição da especificação e nas revisões anteriores do M2, para o veredito final antes de qualquer merge ou autorização de avançar ao M3.
+**O veredito final chegou: M2 aprovado pela revisão externa.** Nada foi integrado em `staging`/`main` ainda — falta a autorização explícita do dono para o merge, e M3 continua não iniciado até nova autorização separada, por regra explícita da própria especificação.
