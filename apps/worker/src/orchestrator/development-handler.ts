@@ -3,6 +3,7 @@ import { runDeveloperTaskInSandbox } from '@escritorio/agents';
 import type { Pool } from '@escritorio/database';
 import {
   type DevelopTaskJobData,
+  EventBus,
   JOB_NAMES,
   QUEUE_NAMES,
   transitionTask,
@@ -18,6 +19,8 @@ export interface DevelopmentHandlerDeps {
   governor: Governor;
   sandboxManager: SandboxManager;
   logger: Logger;
+  /** Atraso do reagendamento quando o Governor não tem slot (testável). Padrão: 2s. */
+  waitSlotDelayMs?: number;
 }
 
 async function loadTask(pool: Pool, id: string): Promise<TaskRow | undefined> {
@@ -42,7 +45,15 @@ async function runningTaskCount(pool: Pool, excludingTaskId: string): Promise<nu
  * Idempotente por leitura de estado — uma reentrega do BullMQ (at-least-once)
  * relê o status atual em vez de assumir de onde o job payload diz que partiu.
  */
-export function createDevelopmentHandler({ pool, governor, sandboxManager, logger }: DevelopmentHandlerDeps) {
+const DEFAULT_WAIT_SLOT_DELAY_MS = 2_000;
+
+export function createDevelopmentHandler({
+  pool,
+  governor,
+  sandboxManager,
+  logger,
+  waitSlotDelayMs = DEFAULT_WAIT_SLOT_DELAY_MS,
+}: DevelopmentHandlerDeps) {
   return async function handleDevelopTask(job: Job<DevelopTaskJobData>): Promise<void> {
     const { taskId, correlationId } = job.data;
     let task = await loadTask(pool, taskId);
@@ -58,7 +69,33 @@ export function createDevelopmentHandler({ pool, governor, sandboxManager, logge
       const running = await runningTaskCount(pool, taskId);
       const start = governor.evaluate({ kind: 'TASK_START', runningTasks: running });
       if (!start.allowed) {
-        throw new Error(`Governor negou início da task (${start.rule}): ${start.reason}`);
+        // Falta de slot é espera operacional, não falha da task (revisão externa
+        // do fechamento do M2): lançar aqui consumiria uma tentativa de
+        // MAX_TASK_RETRIES, que é orçamento de execução/revisão, não de
+        // agendamento. Em vez disso, publica TASK_WAITING_SLOT (task continua
+        // ASSIGNED, nenhuma transição) e reagenda develop-task com atraso via
+        // outbox — este job termina normalmente (sucesso, não conta tentativa).
+        await new EventBus(pool).publish(
+          {
+            type: 'TASK_WAITING_SLOT',
+            payload: { rule: start.rule, reason: start.reason, runningTasks: running },
+            taskId,
+            opportunityId: task.opportunity_id ?? undefined,
+            correlationId,
+            // Mesma entrega do mesmo job do BullMQ = mesma chave (não duplica o
+            // evento numa reentrega); um novo job de espera tem job.id novo.
+            idempotencyKey: `task:${taskId}:waiting-slot:${job.id}:${job.attemptsMade}`,
+          },
+          {
+            queue: QUEUE_NAMES.ORCHESTRATOR,
+            jobName: JOB_NAMES.DEVELOP_TASK,
+            data: () => ({ taskId, correlationId }),
+            attempts: governor.limits.MAX_TASK_RETRIES + 1,
+            jobId: `develop-task-${taskId}-wait-${crypto.randomUUID()}`,
+            delayMs: waitSlotDelayMs,
+          },
+        );
+        return;
       }
 
       await transitionTask(pool, {

@@ -17,6 +17,7 @@ export const EVENT_TYPES = [
   'TASK_CREATED',
   'TASK_ASSIGNED',
   'TASK_STARTED',
+  'TASK_WAITING_SLOT',
   'TASK_COMPLETED',
   'TASK_BLOCKED',
   'AGENT_STATE_CHANGED',
@@ -67,6 +68,16 @@ export const EVENT_PAYLOAD_SCHEMAS = {
       reason: z.string().min(1),
       action: jsonObject,
       source: z.object({ queue: z.string(), jobId: z.string() }).strict(),
+    })
+    .strict(),
+  // Revisão externa do M2 (fechamento): negativa temporária do Governor em
+  // TASK_START é espera operacional, não falha — este evento não muda o
+  // status da task (continua ASSIGNED) e não consome MAX_TASK_RETRIES.
+  TASK_WAITING_SLOT: z
+    .object({
+      rule: z.string().min(1),
+      reason: z.string().min(1),
+      runningTasks: z.number().int().min(0),
     })
     .strict(),
 } satisfies Partial<Record<EventType, z.ZodType>>;

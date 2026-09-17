@@ -12,6 +12,8 @@ export interface JobDispatch {
   attempts: number;
   /** Padrão: o id do evento. Mesmo jobId = mesmo job no BullMQ. */
   jobId?: string;
+  /** Espera antes de o outbox liberar este job para publicação (ex.: reagendamento de slot). */
+  delayMs?: number;
 }
 
 export interface PublishResult extends AppendResult {
@@ -47,6 +49,7 @@ export class EventBus {
       jobId,
       payload: dispatch.data(result.event),
       jobAttempts: dispatch.attempts,
+      delayMs: dispatch.delayMs,
     });
     return { ...result, jobId };
   }

@@ -9,15 +9,30 @@ export interface OutboxEntry {
   jobId: string;
   payload: Record<string, unknown>;
   jobAttempts: number;
+  /**
+   * Espera antes de o dispatcher publicar (ex.: reagendar `develop-task`
+   * quando o Governor não tem slot — revisão externa do M2). `available_at`
+   * já existia para o backoff de falha de publicação; aqui é o mesmo campo
+   * usado para atraso deliberado desde a criação da linha.
+   */
+  delayMs?: number;
 }
 
 /** Grava o pedido de job. Mesmo `jobId` duas vezes é ignorado: nunca duplica. */
 export async function enqueueInOutbox(tx: Queryable, entry: OutboxEntry): Promise<void> {
   await tx.query(
-    `INSERT INTO outbox (event_id, queue, job_name, job_id, payload, job_attempts)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO outbox (event_id, queue, job_name, job_id, payload, job_attempts, available_at)
+     VALUES ($1, $2, $3, $4, $5, $6, clock_timestamp() + make_interval(secs => $7::double precision / 1000))
      ON CONFLICT (job_id) DO NOTHING`,
-    [entry.eventId, entry.queue, entry.jobName, entry.jobId, JSON.stringify(entry.payload), entry.jobAttempts],
+    [
+      entry.eventId,
+      entry.queue,
+      entry.jobName,
+      entry.jobId,
+      JSON.stringify(entry.payload),
+      entry.jobAttempts,
+      entry.delayMs ?? 0,
+    ],
   );
 }
 

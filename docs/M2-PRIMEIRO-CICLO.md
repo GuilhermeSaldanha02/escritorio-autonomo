@@ -1,18 +1,19 @@
 # Relatório — Milestone 2: Primeiro Ciclo
 
 - **Data:** 2026-09-17 · **Agente:** Claude (Sonnet 5) · **Branch:** `feat/m2-primeiro-ciclo` (saindo de `staging`)
-- **Estado:** concluído e validado localmente. **Aguardando revisão externa (ChatGPT) e autorização do dono. Nada integrado em `staging`/`main`. M3 não iniciado.**
+- **Estado:** concluído e validado localmente, com as duas correções exigidas pela revisão de fechamento já aplicadas (§4a). **Aguardando veredito final da revisão externa (ChatGPT) e autorização do dono. Nada integrado em `staging`/`main`. M3 não iniciado.**
 - **Autorização de início:** dono, 2026-09-17, após aprovação do M1 na revisão externa.
 - **Consulta intermediária (ChatGPT, antes do passo 5):** orientação recebida e registrada em `docs/M2-PLANO.md` (transições atômicas, um job por transição pesada, `MAX_PARALLEL_TASKS` como garantia V1-single-worker, terminologia snapshot+hash, e a barra de seis propriedades usada abaixo).
+- **Revisão de fechamento (ChatGPT, 2026-09-17):** primeira versão deste relatório + ZIP levados à revisão. Veredito: arquitetura e fluxo principal aprovados, mas dois pontos bloqueantes antes de fechar — `MAX_PARALLEL_TASKS` (starvation) e `CRASH RECOVERY` (sem prova). Ambos corrigidos e reprovados nesta versão — ver §4a.
 - **Repositório:** só local em `C:\escritorio-autonomo`, sem remoto.
 
 ---
 
 ## 0. Como ler este relatório
 
-O M1 tinha um formato fixo de 20 itens porque a especificação pedia esse formato para o **primeiro** relatório. O M2 não tem esse molde — este relatório está organizado pelos 11 critérios de aceite do M2 (`docs/M2-PLANO.md`) e, por cima deles, pelas **seis propriedades** que a própria revisão externa definiu como a barra real de fechamento: `CRASH`, `REDIS DOWN`, `DUPLICATE DELIVERY`, `RETRY`, `REVIEW FAILED`, `FORBIDDEN ACTION` — nenhuma pode duplicar trabalho, pular estado, contornar o Governor, autoaprovar, exceder retries ou deixar a task em estado desconhecido.
+O M1 tinha um formato fixo de 20 itens porque a especificação pedia esse formato para o **primeiro** relatório. O M2 não tem esse molde — este relatório está organizado pelos 11 critérios de aceite do M2 (`docs/M2-PLANO.md`) e, por cima deles, pelas **seis propriedades** que a própria revisão externa definiu como a barra real de fechamento: `CRASH RECOVERY`, `REDIS DOWN`, `DUPLICATE DELIVERY`, `RETRY`, `REVIEW FAILED`, `FORBIDDEN ACTION` — nenhuma pode duplicar trabalho, pular estado, contornar o Governor, autoaprovar, exceder retries ou deixar a task em estado desconhecido.
 
-Uma delas — `CRASH` — **não tem teste**. Isso está dito explicitamente na seção 4, não escondido atrás de um ✅.
+Esta é a **segunda versão** deste relatório. A primeira foi levada à revisão externa e voltou com dois pontos bloqueantes; a seção 4a documenta o que mudou e por quê. `CRASH RECOVERY` agora tem prova funcional, com uma ressalva deliberada sobre a forma da prova (não é SIGKILL de processo real do SO) — registrada explicitamente, não escondida atrás de um ✅.
 
 ## 1. O que foi construído no M2
 
@@ -62,6 +63,8 @@ e2a8dc5 feat: Adiciona Transactional Outbox com dispatcher no Worker
 
 Um commit fora dessa lista de código, deliberadamente separado: `01dca54` — emenda do dono à §16 (política Free-First), documentação apenas, sem impacto no comportamento do M2 (ver §7).
 
+Commit adicional desta segunda versão, com as duas correções da revisão de fechamento (§4a): `docs: Fecha o M2 com relatório, ressalvas e ZIP para revisão externa` (documentação da primeira versão) seguido do commit de código com `TASK_WAITING_SLOT` + crash recovery.
+
 ## 3. Critérios de aceite (`docs/M2-PLANO.md`)
 
 | # | Critério | Prova |
@@ -74,9 +77,9 @@ Um commit fora dessa lista de código, deliberadamente separado: `01dca54` — e
 | 6 | Revisão reprovada volta ao Desenvolvedor; retries esgotados → `BLOCKED` | ✅ `orchestrator.test.ts` (inclui reprovação real de sandbox, não só o atalho do hash) |
 | 7 | Capacidade proibida → `ACTION_BLOCKED`, sem task | ✅ `orchestrator.test.ts` |
 | 8 | Sandbox sem rede/capabilities/root, teto de memória/CPU/pids/disco/tempo | ✅ `sandbox.test.ts` (16 testes, mutação confirmada em rede/não-root; CPU verificado via `inspect().HostConfig.NanoCpus`) |
-| 9 | Paralelismo respeita `MAX_PARALLEL_TASKS` | ✅ `orchestrator.test.ts` — garantia V1 single-worker (gap latente documentado, §5) |
+| 9 | Paralelismo respeita `MAX_PARALLEL_TASKS`; falta temporária de slot é espera, não falha | ✅ `orchestrator.test.ts` (`TASK_WAITING_SLOT`, corrigido na revisão de fechamento — ver §4a) |
 | 10 | `AGENT_STATE_CHANGED` durante o ciclo | ✅ `orchestrator.test.ts` |
-| 11 | typecheck/lint/test/build limpos; R$0 | ✅ typecheck, lint, 89 unitários + 57 integração (146 total), build limpo de `dist/` zerado |
+| 11 | typecheck/lint/test/build limpos; R$0 | ✅ typecheck, lint, 89 unitários + 58 integração (147 total), build limpo de `dist/` zerado |
 
 ## 4. As seis propriedades (barra da revisão externa)
 
@@ -88,16 +91,28 @@ Um commit fora dessa lista de código, deliberadamente separado: `01dca54` — e
 | `REVIEW FAILED` | `orchestrator.test.ts` (`mode: 'real-failure'`) | prova que a decisão vem do que o Revisor observou na própria sandbox, não do que o Desenvolvedor autodeclarou — evento forjado mente sobre sucesso e é ignorado |
 | `FORBIDDEN ACTION` | `orchestrator.test.ts` | capacidade `TRADING` → `ACTION_BLOCKED`, `REJECTED`, nenhuma task criada |
 | Autoaprovação | estrutural (`decideReview` nunca recebe quem implementou) + `orchestrator.test.ts` (`developer_sandbox_id ≠ review_sandbox_id`) | |
-| **`CRASH`** | **nenhum teste** | **ver abaixo** |
+| `CRASH RECOVERY` | `orchestrator.test.ts` (novo — ver §4a) | ✅ recuperação funcional demonstrada, **com ressalva deliberada sobre a forma da prova** |
 
-**Sobre `CRASH`, com honestidade:** os handlers do Orquestrador são idempotentes por releitura de estado — cada um relê o status atual no banco a cada execução, em vez de assumir de onde o payload do job diz que partiu — e o desenho foi raciocinado deliberadamente para resumir depois de uma queda em qualquer ponto do ciclo. Isso é argumentado, não demonstrado: nenhum teste matou um processo Worker no meio de uma transição. A evidência mais próxima é indireta — os testes de `DUPLICATE DELIVERY` provam que uma reentrega do BullMQ depois de uma falha parcial (`ALREADY_APPLIED`) não duplica o efeito, propriedade que sustentaria a recuperação de um crash real, mas continua sendo inferência, não prova direta. Decisão: não construir esse teste agora (mataria um processo real sob a restrição de 8GB de RAM da máquina, com risco desproporcional ao benefício nesta fase) — registrado como gap conhecido, não como ✅.
+## 4a. Correções exigidas pela revisão de fechamento
+
+A primeira versão deste relatório (com `CRASH` marcado como gap declarado e `MAX_PARALLEL_TASKS` com o starvation registrado como "aceitável por enquanto") foi levada à revisão externa. Veredito: arquitetura aprovada, mas dois pontos bloqueantes antes de fechar.
+
+**1. `TASK_WAITING_SLOT` (antes: gap latente "aceitável"; agora: corrigido).** A revisão discordou de deixar isso para depois: negativa temporária de slot é espera operacional, não falha, e não deveria consumir o orçamento de retries de execução/revisão. Implementado em `apps/worker/src/orchestrator/development-handler.ts` — quando o Governor nega `TASK_START`, o handler publica `TASK_WAITING_SLOT` (task continua `ASSIGNED`, nenhuma transição) e reagenda `develop-task` com atraso via outbox (`packages/events/src/outbox.ts` ganhou um `delayMs` opcional, reaproveitando o campo `available_at` já usado para o backoff de publicação); o job atual termina com sucesso, sem contar como tentativa de `MAX_TASK_RETRIES`. Nenhum estado novo na máquina de estados — `ASSIGNED` continua sendo o estado persistente, `TASK_WAITING_SLOT` é só o evento operacional.
+   - **Prova:** `orchestrator.test.ts` ocupa todos os slots, confirma `TASK_WAITING_SLOT` publicado com `retry_count` em 0 e status `ASSIGNED`, libera um slot, confirma retomada automática até `COMPLETED`/`SUBMITTED`. Mutação confirmada (revertendo para o `throw` antigo, só esse teste quebra).
+
+**2. `CRASH RECOVERY` (antes: nenhum teste; agora: prova funcional, com ressalva).** A revisão pediu inicialmente matar um processo Worker real (spawn de processo do SO + SIGKILL). Dada a restrição de 8GB de RAM da máquina de desenvolvimento (chegou a ~245MB livres durante esta sessão), levei essa decisão de volta à revisão externa antes de implementar, explicando o risco real de travar a máquina. A revisão **aprovou explicitamente uma alternativa**: crash simulado in-process via `worker.close(true)` do BullMQ, condicionado a registrar a ressalva sem transformar inferência em evidência que não existe.
+   - **Desenho:** fechar um `Worker` do BullMQ não cancela a função assíncrona já em execução em JavaScript — sem cuidado extra, o job "morto" poderia terminar sozinho em segundo plano, mascarando o teste. Por isso o Worker A desta task roda com um `SandboxManager` que nunca resolve (`{ run: () => new Promise(() => {}) }`): o job fica genuinamente preso no passo do Desenvolvedor. Ao detectar `AGENT_STATE_CHANGED` com `CODING` (job confirmadamente ativo), o teste força `workerA.close(true)` — o lock do job para de ser renovado a partir daí. Um Worker B (instância nova, `SandboxManager` real, `lockDuration`/`stalledInterval` curtos só para teste — `orchestrator-worker.ts` ganhou esses dois parâmetros opcionais) detecta o `'stalled'` (evento nativo do BullMQ, não inferido) e retoma relendo o estado do PostgreSQL, sem confiar no payload original do job.
+   - **Prova:** ciclo completo até `COMPLETED`/`SUBMITTED`, `retry_count` intocado, e cada evento-chave da transição em voo no momento do crash aparecendo **exatamente uma vez** (`TASK_STARTED`, `IMPLEMENTATION_READY`, `REVIEW_STARTED`, `REVIEW_PASSED`, `TASK_COMPLETED`) — sem duplicação, mesmo com dois Workers tendo processado o mesmo job. Mutação confirmada: removendo o Worker B, o ciclo nunca completa — prova que a recuperação é genuinamente do Worker B via o stalled job, não coincidência de timing.
+   - **Ressalva registrada, como pedido pela revisão:** *"CRASH RECOVERY foi validado funcionalmente por abandono forçado de um job ativo usando worker.close(true), seguido de detecção/reentrega pelo mecanismo de stalled jobs do BullMQ e retomada por uma nova instância de Worker. O M2 não executou SIGKILL de um processo Node separado do sistema operacional devido à restrição de recursos da máquina de desenvolvimento."* Teste de crash em processo isolado do SO fica como evolução futura, em ambiente com recursos adequados (ex.: CI).
+
+**Validação após as duas correções:** typecheck limpo, lint limpo, 89 unitários (inalterados), 58 integração (57 → reescreveu o teste do critério 9 no lugar + 1 teste novo de crash), build limpo de `dist/` zerado em todos os 8 pacotes.
 
 ## 5. Gaps latentes conhecidos (não bloqueiam o M2, registrados para depois)
 
-- **Critério 9 / múltiplos Workers:** uma task barrada pelo Governor em `TASK_START` esgota as tentativas do job (`MAX_TASK_RETRIES + 1`, backoff exponencial) e fica parada em `ASSIGNED` sem job nem evento — o sistema perde de vista o motivo. Inofensivo com um único Worker (a concorrência do BullMQ já é `MAX_PARALLEL_TASKS`, o Governor nunca chega a negar na prática — por isso o teste do critério 9 precisou inserir manualmente duas tasks "ocupantes" para forçar o caso). Com mais de um processo Worker, precisa de reenfileiramento com atraso ou um evento explícito (`TASK_WAITING_SLOT`).
 - **Diretor `BACKLOG`/`INVESTIGATE`:** a oportunidade fica parada em `EVALUATING` sem reavaliação futura — fora do escopo do §19 (provar o fluxo feliz e os bloqueios, não o backlog).
 - **`repository`/`branch` sintéticos** (`mock://local`) no contrato do Desenvolvedor — não existem no schema de `tasks` porque não há repositório real até o M4.
-- **`CRASH`** — ver §4.
+- **SIGKILL de processo real do SO para `CRASH RECOVERY`** — ver §4a; hardening futuro em ambiente com mais recursos (ex.: CI).
+- **`MAX_PARALLEL_TASKS` verdadeiramente global entre múltiplos processos Worker** — o `TASK_WAITING_SLOT` (§4a) resolve o starvation, mas o limite em si continua sendo uma garantia V1 single-worker (BullMQ `concurrency` por processo); um limite global entre processos é trabalho futuro, fora do M2.
 
 ## 6. Bug real encontrado e corrigido durante o M2 (não um teste flaky ignorado)
 
@@ -135,6 +150,8 @@ Todo o M2 rodou com `AI_MODE=mock`, sem chamadas a APIs de IA pagas, sem cartão
 
 ## 11. Situação e próximo passo
 
-M2 implementado e validado localmente — todos os 6 passos e os 11 critérios de aceite têm evidência reexecutável; as seis propriedades da barra de fechamento têm prova direta, exceto `CRASH` (argumentado, não demonstrado — gap declarado, não escondido).
+M2 implementado e validado localmente — todos os 6 passos e os 11 critérios de aceite têm evidência reexecutável; as seis propriedades da barra de fechamento têm prova direta, incluindo `CRASH RECOVERY` (com a ressalva deliberada sobre a forma da prova registrada em §4a, aprovada explicitamente pela revisão externa).
 
-**Nada foi integrado em `staging`/`main`. Nenhum trabalho de M3 foi iniciado.** Este relatório, junto com o ZIP do commit atual (`git archive`, sem `.env`/`node_modules`/`dist`), vai para a mesma conversa do ChatGPT usada na definição da especificação e na revisão do M1/passo-5 do M2, para revisão externa antes de qualquer merge ou autorização de avançar ao M3.
+Esta é a segunda versão do relatório, depois de uma rodada de correções pedida pela própria revisão externa (§4a): `TASK_WAITING_SLOT` corrigiu o starvation do critério 9, e `CRASH RECOVERY` ganhou prova funcional via `worker.close(true)` + stalled job do BullMQ.
+
+**Nada foi integrado em `staging`/`main`. Nenhum trabalho de M3 foi iniciado.** Este relatório, junto com o ZIP do commit atual (`git archive`, sem `.env`/`node_modules`/`dist`), vai para a mesma conversa do ChatGPT usada na definição da especificação e nas revisões anteriores do M2, para o veredito final antes de qualquer merge ou autorização de avançar ao M3.

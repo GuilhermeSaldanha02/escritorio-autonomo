@@ -348,27 +348,182 @@ describe('Orquestrador — retry e bloqueio (critério 6)', () => {
 });
 
 describe('Orquestrador — MAX_PARALLEL_TASKS (critério 9)', () => {
-  it('Governor recusa iniciar uma task quando o número de tasks em execução já atingiu o limite', async () => {
-    // Duas tasks "em execução" (não precisam ser reais/completas — só ocupar a contagem).
-    for (let i = 0; i < governor.limits.MAX_PARALLEL_TASKS; i += 1) {
-      const { rows } = await pool.query<{ id: string }>(
-        `INSERT INTO opportunities (source, source_url, title, status, automation_allowed, ai_allowed)
-         VALUES ('teste', $1, 'Ocupante', 'WORKING', true, true) RETURNING id`,
-        [`https://exemplo.test/ocupante-${i}-${crypto.randomUUID()}`],
+  it(
+    'sem slot: task espera (TASK_WAITING_SLOT) sem consumir retries, e retoma sozinha quando um slot libera',
+    async () => {
+      // Ocupa todos os slots (não precisam ser reais/completos — só ocupar a contagem).
+      const occupantTaskIds: string[] = [];
+      for (let i = 0; i < governor.limits.MAX_PARALLEL_TASKS; i += 1) {
+        const { rows } = await pool.query<{ id: string }>(
+          `INSERT INTO opportunities (source, source_url, title, status, automation_allowed, ai_allowed)
+           VALUES ('teste', $1, 'Ocupante', 'WORKING', true, true) RETURNING id`,
+          [`https://exemplo.test/ocupante-${i}-${crypto.randomUUID()}`],
+        );
+        const task = await pool.query<{ id: string }>(
+          `INSERT INTO tasks (opportunity_id, objective, status) VALUES ($1, 'ocupante', 'IN_PROGRESS') RETURNING id`,
+          [rows[0]!.id],
+        );
+        occupantTaskIds.push(task.rows[0]!.id);
+      }
+
+      const { opportunityId } = await discoverOpportunity();
+      const task = await waitFor(async () => await taskForOpportunity(opportunityId), {
+        timeoutMs: 30_000,
+        label: 'task extra criada além do limite de paralelismo',
+      });
+
+      // Espera operacional, não falha: TASK_WAITING_SLOT é publicado, a task
+      // continua ASSIGNED e MAX_TASK_RETRIES não é tocado (retry_count é
+      // orçamento de execução/revisão, não de agendamento).
+      await waitFor(
+        async () => (await eventCount(task.id, 'TASK_WAITING_SLOT')) > 0 || undefined,
+        { timeoutMs: 15_000, label: 'TASK_WAITING_SLOT ser publicado enquanto não há slot' },
       );
-      await pool.query(`INSERT INTO tasks (opportunity_id, objective, status) VALUES ($1, 'ocupante', 'IN_PROGRESS')`, [rows[0]!.id]);
-    }
+      const stillWaiting = await taskForOpportunity(opportunityId);
+      expect(stillWaiting?.status).toBe('ASSIGNED');
+      expect(stillWaiting?.retry_count).toBe(0);
 
-    const { opportunityId } = await discoverOpportunity();
-    const task = await waitFor(async () => await taskForOpportunity(opportunityId), {
-      timeoutMs: 30_000,
-      label: 'task extra criada além do limite de paralelismo',
-    });
+      // Libera um slot: a task extra deve retomar sozinha, sem qualquer
+      // intervenção — prova que a espera não é um beco sem saída permanente
+      // (o comportamento antigo, que este teste substitui).
+      await pool.query(`UPDATE tasks SET status = 'COMPLETED' WHERE id = $1`, [occupantTaskIds[0]]);
 
-    // A task extra fica presa em ASSIGNED: o Governor nunca autoriza o início
-    // enquanto MAX_PARALLEL_TASKS já estiver ocupado pelas duas de cima.
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
-    const { rows } = await pool.query<{ status: string }>('SELECT status FROM tasks WHERE id = $1', [task.id]);
-    expect(rows[0]?.status).toBe('ASSIGNED');
-  }, 30_000);
+      const completed = await waitFor(
+        async () => {
+          const current = await taskForOpportunity(opportunityId);
+          return current?.status === 'COMPLETED' ? current : undefined;
+        },
+        { timeoutMs: 30_000, label: 'task extra retomar e chegar a COMPLETED após liberar um slot' },
+      );
+      expect(completed.retry_count).toBe(0);
+      expect(await opportunityStatus(opportunityId)).toBe('SUBMITTED');
+    },
+    60_000,
+  );
+});
+
+describe('Orquestrador — crash recovery (decisão da revisão externa do fechamento do M2)', () => {
+  /**
+   * CRASH RECOVERY foi validado funcionalmente por abandono forçado de um job
+   * ativo usando worker.close(true), seguido de detecção/reentrega pelo
+   * mecanismo de stalled jobs do BullMQ e retomada por uma nova instância de
+   * Worker. O M2 não executou SIGKILL de um processo Node separado do sistema
+   * operacional devido à restrição de recursos da máquina de desenvolvimento
+   * (8GB de RAM) — decisão explícita da revisão externa (opção B), registrada
+   * em docs/M2-PLANO.md e docs/M2-PRIMEIRO-CICLO.md. Teste de crash em
+   * processo isolado do SO (SIGKILL/container kill) fica como evolução
+   * futura, em ambiente com recursos adequados (ex.: CI).
+   *
+   * Para que o "abandono" seja real (e não a promise da Worker A terminando
+   * o job em segundo plano por coincidência — fechar um Worker não cancela
+   * um processador já em execução em JavaScript), o Worker A desta task usa
+   * um SandboxManager que nunca resolve: o job fica genuinamente preso dentro
+   * do passo do Desenvolvedor, sem nenhuma chance de completar sozinho. O
+   * Worker B usa o SandboxManager real e é quem de fato termina o ciclo —
+   * prova de que quem recuperou foi o mecanismo de stalled job do BullMQ
+   * relendo o estado do PostgreSQL, não uma coincidência de timing.
+   */
+  it(
+    'Worker A trava (job nunca resolve) e é fechado à força; Worker B detecta o stalled job, relê o PostgreSQL e completa o ciclo sem duplicar nada',
+    async () => {
+      // Worker A nunca deveria competir pelo job de teste com o worker padrão
+      // do beforeEach — fecha-o para este teste não ter dois consumidores na
+      // mesma fila.
+      await worker.close();
+
+      const shortLock = { lockDuration: 1_500, stalledInterval: 500 };
+      const hangingSandbox = { run: () => new Promise<never>(() => {}) } as unknown as SandboxManager;
+      const realSandboxManager = new SandboxManager(createDockerClient(), logger);
+
+      const connA = createRedisConnection(testRedisUrl(), 'consumer', 'crash-test-worker-a');
+      const connB = createRedisConnection(testRedisUrl(), 'consumer', 'crash-test-worker-b');
+      const workerA = createOrchestratorWorker({
+        connection: connA,
+        prefix,
+        pool,
+        governor,
+        sandboxManager: hangingSandbox,
+        logger,
+        ...shortLock,
+      });
+      await workerA.waitUntilReady();
+
+      try {
+        const { opportunityId } = await discoverOpportunity();
+        const task = await waitFor(async () => await taskForOpportunity(opportunityId), {
+          timeoutMs: 30_000,
+          label: 'task criada para a oportunidade',
+        });
+
+        // Ponto do crash: dentro do passo do Desenvolvedor (a janela mais
+        // longa do ciclo, como orientado pela revisão externa) — o evento
+        // CODING confirma que o job já está ativo no Worker A, preso no
+        // SandboxManager que nunca resolve.
+        await waitFor(
+          async () => {
+            const { rows } = await pool.query<{ count: string }>(
+              `SELECT count(*)::text AS count FROM events
+                WHERE task_id = $1 AND type = 'AGENT_STATE_CHANGED' AND payload->>'newState' = 'CODING'`,
+              [task.id],
+            );
+            return Number(rows[0]?.count ?? 0) > 0 || undefined;
+          },
+          { timeoutMs: 15_000, label: 'Worker A entrar no passo do Desenvolvedor (CODING)' },
+        );
+
+        // "Crash": fecha à força, sem esperar o job (que nunca terminaria
+        // sozinho — está preso no SandboxManager que nunca resolve). O lock
+        // do job para de ser renovado a partir daqui.
+        await workerA.close(true);
+
+        // Worker B: instância nova, SandboxManager real, mesma fila. Só
+        // assume o job depois que o BullMQ detectar o lock expirado
+        // (stalledInterval curto) e marcar como stalled — não porque algum
+        // job novo foi criado pelo Orquestrador.
+        const workerB = createOrchestratorWorker({
+          connection: connB,
+          prefix,
+          pool,
+          governor,
+          sandboxManager: realSandboxManager,
+          logger,
+          ...shortLock,
+        });
+        await workerB.waitUntilReady();
+
+        try {
+          const stalledSeen = new Promise<void>((resolve) => workerB.once('stalled', () => resolve()));
+          await stalledSeen;
+
+          const completed = await waitFor(
+            async () => {
+              const current = await taskForOpportunity(opportunityId);
+              return current?.status === 'COMPLETED' ? current : undefined;
+            },
+            { timeoutMs: 60_000, label: 'Worker B retomar do PostgreSQL e completar o ciclo' },
+          );
+
+          // Estado final conhecido, sem bypass do Governor (chegou a
+          // COMPLETED pelo caminho normal) e sem consumo indevido de retry.
+          expect(completed.retry_count).toBe(0);
+          expect(await opportunityStatus(opportunityId)).toBe('SUBMITTED');
+
+          // Nenhuma duplicação crítica: cada evento-chave da transição em
+          // voo no momento do crash aparece exatamente uma vez — a
+          // idempotencyKey (packages/events/src/transitions.ts) garantiu que
+          // só uma tentativa (a do Worker B) commitou, mesmo com dois
+          // Workers tendo processado o mesmo job.
+          for (const type of ['TASK_STARTED', 'IMPLEMENTATION_READY', 'REVIEW_STARTED', 'REVIEW_PASSED', 'TASK_COMPLETED']) {
+            expect(await eventCount(task.id, type)).toBe(1);
+          }
+        } finally {
+          await workerB.close();
+          await connB.quit();
+        }
+      } finally {
+        await connA.quit();
+      }
+    },
+    90_000,
+  );
 });

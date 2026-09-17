@@ -16,6 +16,15 @@ export interface OrchestratorWorkerDeps {
   governor: Governor;
   sandboxManager: SandboxManager;
   logger: Logger;
+  /** Repassado ao development-handler — testável sem esperar o atraso real de produção. */
+  waitSlotDelayMs?: number;
+  /**
+   * Padrão do BullMQ (30s/30s) em produção. Testáveis para o teste de crash
+   * recovery (revisão externa do fechamento do M2): sem isso, esperar um job
+   * abandonado ser detectado como stalled levaria 30s ou mais por teste.
+   */
+  lockDuration?: number;
+  stalledInterval?: number;
 }
 
 /**
@@ -31,9 +40,19 @@ export interface OrchestratorWorkerDeps {
  * checa `TASK_START` antes de cada task começar (development-handler.ts),
  * mas um limite verdadeiramente global entre processos fica para depois do M2.
  */
-export function createOrchestratorWorker({ connection, prefix, pool, governor, sandboxManager, logger }: OrchestratorWorkerDeps): Worker {
+export function createOrchestratorWorker({
+  connection,
+  prefix,
+  pool,
+  governor,
+  sandboxManager,
+  logger,
+  waitSlotDelayMs,
+  lockDuration,
+  stalledInterval,
+}: OrchestratorWorkerDeps): Worker {
   const handleDecideOpportunity = createOpportunityHandler({ pool, governor, logger });
-  const handleDevelopTask = createDevelopmentHandler({ pool, governor, sandboxManager, logger });
+  const handleDevelopTask = createDevelopmentHandler({ pool, governor, sandboxManager, logger, waitSlotDelayMs });
   const handleReviewTask = createReviewHandler({ pool, governor, sandboxManager, logger });
 
   const worker = new Worker(
@@ -50,7 +69,16 @@ export function createOrchestratorWorker({ connection, prefix, pool, governor, s
           throw new UnrecoverableError(`Job desconhecido na fila ${QUEUE_NAMES.ORCHESTRATOR}: ${job.name}`);
       }
     },
-    { connection, prefix, concurrency: governor.limits.MAX_PARALLEL_TASKS },
+    {
+      connection,
+      prefix,
+      concurrency: governor.limits.MAX_PARALLEL_TASKS,
+      // Object.assign com defaults do BullMQ: uma chave presente com valor
+      // undefined sobrescreveria o default (30s) por undefined e quebraria a
+      // validação interna — só inclui quando explicitamente definido.
+      ...(lockDuration !== undefined ? { lockDuration } : {}),
+      ...(stalledInterval !== undefined ? { stalledInterval } : {}),
+    },
   );
 
   worker.on('failed', (job, error) => {
