@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Segredos e configuração local: somente .env.example é versionado
+.env
+.env.*
+!.env.example
+
+*.log
+.DS_Store
+Thumbs.db
