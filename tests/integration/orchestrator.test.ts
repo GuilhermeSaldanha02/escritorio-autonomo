@@ -11,6 +11,7 @@ import {
   QUEUE_NAMES,
 } from '@escritorio/events';
 import { Governor, loadConstitution } from '@escritorio/governor';
+import { hashFileSnapshot } from '@escritorio/shared';
 import { createDockerClient, SandboxManager } from '@escritorio/tools';
 import { createOrchestratorWorker } from '@escritorio/worker';
 import { createTestPool, logger, resetDatabase, testRedisUrl, uniqueQueuePrefix, waitFor } from './support.js';
@@ -216,18 +217,23 @@ describe('Orquestrador — ciclo completo', () => {
 
 describe('Orquestrador — retry e bloqueio (critério 6)', () => {
   /**
-   * Usa uma task já em IMPLEMENTATION_READY com um evento cujo
-   * resulting_snapshot_hash não bate com resulting_files — o primeiro portão
-   * de reviewInSandbox recusa sem tocar o Docker (mesma prova de
-   * packages/agents/test, aqui no nível do handler). Determinístico e rápido:
-   * não depende do programa mock realmente falhar dentro de um container.
+   * Fixture inserida direto no banco (como em transitions.test.ts), sem passar
+   * pelo DECIDE_OPPORTUNITY real: se a oportunidade fosse descoberta pelo
+   * fluxo normal, o DEVELOP_TASK automático rodaria uma sandbox de verdade em
+   * paralelo com esta manipulação manual da task — uma corrida que
+   * corromperia o teste. Aqui não há nenhum Desenvolvedor real envolvido.
+   *
+   * `mode: 'hash-mismatch'` prova o portão de integridade (reviewInSandbox
+   * recusa sem tocar o Docker — mesma prova de packages/agents/test, aqui no
+   * nível do handler). `mode: 'real-failure'` prova que a sandbox do Revisor
+   * roda de verdade e que a decisão usa o que ELA observou, não o que o
+   * evento IMPLEMENTATION_READY (forjado com build:true) afirma — hash
+   * correto, mas solution.test.js reprova de propósito.
    */
-  async function seedTaskAwaitingReview(retryCount: number): Promise<{ taskId: string; opportunityId: string }> {
-    // Fixture inserida direto no banco (como em transitions.test.ts), sem passar
-    // pelo DECIDE_OPPORTUNITY real: se a oportunidade fosse descoberta pelo
-    // fluxo normal, o DEVELOP_TASK automático rodaria uma sandbox de verdade
-    // em paralelo com esta manipulação manual da task — uma corrida que
-    // corromperia o teste. Aqui não há nenhum Desenvolvedor real envolvido.
+  async function seedTaskAwaitingReview(
+    retryCount: number,
+    mode: 'hash-mismatch' | 'real-failure' = 'hash-mismatch',
+  ): Promise<{ taskId: string; opportunityId: string }> {
     const { rows: oppRows } = await pool.query<{ id: string }>(
       `INSERT INTO opportunities (source, source_url, title, status, automation_allowed, ai_allowed)
        VALUES ('teste', $1, 'Oportunidade forjada', 'WORKING', true, true) RETURNING id`,
@@ -241,19 +247,30 @@ describe('Orquestrador — retry e bloqueio (critério 6)', () => {
     const taskId = taskRows[0]!.id;
     const correlationId = crypto.randomUUID();
 
+    const resultingFiles: Record<string, string> =
+      mode === 'hash-mismatch'
+        ? { 'solution.js': 'module.exports = () => 1;' }
+        : {
+            'solution.js': 'module.exports = () => 1;',
+            'solution.test.js': "console.log('TESTES:1:0:1'); process.exit(1);",
+          };
+    // hash-mismatch: errado de propósito, nem chega a rodar a sandbox.
+    // real-failure: correto — o portão de integridade deixa passar, e quem decide é a sandbox.
+    const resultingSnapshotHash = mode === 'hash-mismatch' ? '0'.repeat(64) : hashFileSnapshot(resultingFiles);
+
     await bus.publish({
       type: 'IMPLEMENTATION_READY',
       payload: {
-        changed_files: ['solution.js'],
+        changed_files: Object.keys(resultingFiles),
         diff: 'auditoria',
-        tests: { total: 1, passed: 1, failed: 0 },
-        build: true,
+        tests: { total: 1, passed: 1, failed: 0 }, // autodeclarado pelo Desenvolvedor — deve ser ignorado no modo real-failure
+        build: true, // idem: a decisão real vem da sandbox do Revisor, não daqui
         elapsed_time: 0,
         cost: 0,
         dependencies_added: [],
         notes: 'forjado para teste',
-        resulting_files: { 'solution.js': 'module.exports = () => 1;' },
-        resulting_snapshot_hash: '0'.repeat(64), // propositalmente errado
+        resulting_files: resultingFiles,
+        resulting_snapshot_hash: resultingSnapshotHash,
         developer_sandbox_id: 'sandbox-forjada',
       },
       taskId,
@@ -284,6 +301,35 @@ describe('Orquestrador — retry e bloqueio (critério 6)', () => {
     expect(rows[0]?.retry_count).toBe(1);
     expect(await eventCount(taskId, 'REVIEW_FAILED')).toBeGreaterThanOrEqual(1);
   }, 30_000);
+
+  it(
+    'a sandbox do Revisor roda de verdade e decide pelo que observa, não pelo que o Desenvolvedor autodeclarou',
+    async () => {
+      // Hash correto (o portão de integridade deixa passar), mas o programa
+      // reprova de propósito — e o evento forjado afirma build:true e testes
+      // 1/1/0. Se a decisão usasse o autodeclarado, isto passaria; como usa o
+      // que a sandbox do Revisor observa, precisa reprovar.
+      const { taskId } = await seedTaskAwaitingReview(0, 'real-failure');
+
+      await waitFor(
+        async () => {
+          const { rows } = await pool.query<{ status: string }>('SELECT status FROM tasks WHERE id = $1', [taskId]);
+          return rows[0]?.status === 'IN_PROGRESS' ? rows[0].status : undefined;
+        },
+        { timeoutMs: 30_000, label: 'task voltar a IN_PROGRESS após reprovação real da sandbox' },
+      );
+
+      const { rows } = await pool.query<{ payload: { review_sandbox_id: string | null; tests: { failed: number } } }>(
+        `SELECT payload FROM events WHERE task_id = $1 AND type = 'REVIEW_FAILED' ORDER BY occurred_at DESC LIMIT 1`,
+        [taskId],
+      );
+      // review_sandbox_id só existe quando reviewInSandbox chegou a rodar o container
+      // (no portão de hash divergente ele vem undefined/null) — prova que a sandbox rodou de verdade.
+      expect(rows[0]?.payload.review_sandbox_id).toBeTruthy();
+      expect(rows[0]?.payload.tests.failed).toBeGreaterThanOrEqual(1);
+    },
+    30_000,
+  );
 
   it('reprovação após esgotar MAX_TASK_RETRIES bloqueia a task e falha a oportunidade', async () => {
     const { taskId, opportunityId } = await seedTaskAwaitingReview(governor.limits.MAX_TASK_RETRIES);
