@@ -70,6 +70,17 @@ export const implementationReadySchema = z
     cost: z.number().min(0),
     dependencies_added: z.array(z.string().min(1)),
     notes: z.string(),
+    /**
+     * Extensao ao parag. 13.3 original (decisao registrada em docs/M2-PLANO.md):
+     * o Revisor precisa reconstruir o estado candidato numa sandbox nova e
+     * independente. O diff sozinho nao basta (a imagem de sandbox nao tem
+     * git/patch nem rede) -- o transporte real e o snapshot de arquivos
+     * pos-mudanca, com hash para o Revisor provar que analisou exatamente
+     * o artefato que saiu do Desenvolvedor. O diff continua existindo so
+     * como auditoria.
+     */
+    resulting_files: z.record(z.string().min(1), z.string()),
+    resulting_snapshot_hash: z.string().regex(/^[0-9a-f]{64}$/),
   })
   .strict();
 export type ImplementationReady = z.infer<typeof implementationReadySchema>;

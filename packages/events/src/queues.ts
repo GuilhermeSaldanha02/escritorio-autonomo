@@ -3,8 +3,16 @@ import { Redis } from 'ioredis';
 import { z } from 'zod';
 import { GOVERNED_CAPABILITY_NAMES } from '@escritorio/governor';
 
-export const QUEUE_NAMES = { SYSTEM: 'system' } as const;
-export const JOB_NAMES = { DIAGNOSTIC: 'diagnostic' } as const;
+export const QUEUE_NAMES = { SYSTEM: 'system', ORCHESTRATOR: 'orchestrator' } as const;
+export const JOB_NAMES = {
+  DIAGNOSTIC: 'diagnostic',
+  // Um job por transição do ciclo (§8.1 / revisão externa do M2): cada
+  // handler faz sua transição atômica e enfileira o próximo passo, nunca o
+  // ciclo inteiro num job só — um crash retoma do outbox, não perde a task.
+  DECIDE_OPPORTUNITY: 'decide-opportunity',
+  DEVELOP_TASK: 'develop-task',
+  REVIEW_TASK: 'review-task',
+} as const;
 
 export const diagnosticJobSchema = z
   .object({
@@ -17,6 +25,16 @@ export const diagnosticJobSchema = z
   })
   .strict();
 export type DiagnosticJobData = z.infer<typeof diagnosticJobSchema>;
+
+/** Cada job do Orquestrador só carrega o id da entidade — o handler lê o estado atual do banco, nunca confia em dado velho do payload. */
+export const decideOpportunityJobSchema = z.object({ opportunityId: z.uuid(), correlationId: z.uuid() }).strict();
+export type DecideOpportunityJobData = z.infer<typeof decideOpportunityJobSchema>;
+
+export const developTaskJobSchema = z.object({ taskId: z.uuid(), correlationId: z.uuid() }).strict();
+export type DevelopTaskJobData = z.infer<typeof developTaskJobSchema>;
+
+export const reviewTaskJobSchema = z.object({ taskId: z.uuid(), correlationId: z.uuid() }).strict();
+export type ReviewTaskJobData = z.infer<typeof reviewTaskJobSchema>;
 
 /**
  * Produtor (API) falha rápido quando o Redis cai, para o /health e as rotas

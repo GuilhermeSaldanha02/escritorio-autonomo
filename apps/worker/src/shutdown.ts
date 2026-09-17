@@ -6,7 +6,7 @@ import { createGracefulShutdown, type GracefulShutdown, type Logger } from '@esc
 
 export interface WorkerShutdownDeps {
   dispatcher: Pick<OutboxDispatcher, 'stop'>;
-  worker: Pick<Worker, 'close'>;
+  workers: Iterable<Pick<Worker, 'close'>>;
   queues: Iterable<Pick<Queue, 'close'>>;
   producer: Pick<Redis, 'quit'>;
   connection: Pick<Redis, 'quit'>;
@@ -24,7 +24,7 @@ export interface WorkerShutdownDeps {
  */
 export function createWorkerShutdown({
   dispatcher,
-  worker,
+  workers,
   queues,
   producer,
   connection,
@@ -37,7 +37,7 @@ export function createWorkerShutdown({
     timeoutMs,
     steps: [
       { name: 'outbox-dispatcher', close: () => dispatcher.stop() },
-      { name: 'worker', close: () => worker.close() },
+      { name: 'workers', close: () => Promise.all([...workers].map((worker) => worker.close())) },
       { name: 'queues', close: () => Promise.all([...queues].map((queue) => queue.close())) },
       { name: 'redis-producer', close: () => producer.quit() },
       { name: 'redis-consumer', close: () => connection.quit() },

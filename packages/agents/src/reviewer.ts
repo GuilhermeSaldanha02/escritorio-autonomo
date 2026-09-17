@@ -1,5 +1,7 @@
-import type { TaskStatus } from '@escritorio/shared';
+import type { SandboxManager } from '@escritorio/tools';
+import { hashFileSnapshot, type TaskStatus } from '@escritorio/shared';
 import type { DeveloperTask, ImplementationReady, ReviewCompleted } from './contracts.js';
+import { MOCK_SOLUTION_COMMAND, parseMockTestOutput } from './mock-solution.js';
 
 /**
  * Revisor (§13.4). Decisão determinística sobre um resultado já produzido —
@@ -32,6 +34,53 @@ export function decideReview(
     security_flags: [...securityFlags],
     reason: passed ? 'Build e testes passaram; sem alertas de segurança.' : reasonParts.join('; '),
   };
+}
+
+/**
+ * Reconstrói o estado candidato numa sandbox nova e independente da do
+ * Desenvolvedor (critério 5 do M2) e revisa com base no que essa sandbox
+ * observou, não no que o Desenvolvedor autodeclarou em `implementation`.
+ *
+ * Dois portões antes de aceitar o resultado do Desenvolvedor como entrada
+ * confiável: (1) o hash do snapshot recebido precisa bater com o que o
+ * Desenvolvedor assinou — se não bater, reprova sem sequer rodar (a sandbox
+ * do Revisor teria testado outra coisa); (2) o build/testes que valem para a
+ * decisão são os que a PRÓPRIA sandbox do Revisor observou, não os que
+ * `implementation.build`/`implementation.tests` afirmam — impede que uma
+ * sandbox do Desenvolvedor comprometida ou com bug minta sobre o resultado.
+ */
+export async function reviewInSandbox(
+  sandboxManager: SandboxManager,
+  task: DeveloperTask,
+  implementation: ImplementationReady,
+): Promise<{ review: ReviewCompleted; sandboxId: string | undefined }> {
+  const recomputedHash = hashFileSnapshot(implementation.resulting_files);
+  if (recomputedHash !== implementation.resulting_snapshot_hash) {
+    const review = decideReview(
+      task,
+      { ...implementation, build: false, tests: { total: 1, passed: 0, failed: 1 } },
+      ['SNAPSHOT_HASH_MISMATCH'],
+    );
+    return {
+      review: { ...review, reason: 'Hash do snapshot não confere com o que o Desenvolvedor declarou — recusado sem executar.' },
+      sandboxId: undefined,
+    };
+  }
+
+  const result = await sandboxManager.run({
+    command: MOCK_SOLUTION_COMMAND,
+    files: implementation.resulting_files,
+    limits: { memoryBytes: 32 * 1024 * 1024, timeoutMs: 10_000 },
+  });
+  const observedTests = parseMockTestOutput(result.stdout);
+  const observedBuild = result.exitCode === 0 && !result.oomKilled && !result.timedOut;
+  const securityFlags = [
+    ...(result.oomKilled ? ['SANDBOX_OOM'] : []),
+    ...(result.timedOut ? ['SANDBOX_TIMEOUT'] : []),
+  ];
+
+  const review = decideReview(task, { ...implementation, build: observedBuild, tests: observedTests }, securityFlags);
+  return { review, sandboxId: result.sandboxId };
 }
 
 /**

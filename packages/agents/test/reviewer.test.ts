@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { decideReview, nextTaskStatusAfterReview, runMockDeveloperTask, type DeveloperTask, type ImplementationReady } from '@escritorio/agents';
+import { decideReview, nextTaskStatusAfterReview, reviewInSandbox, runMockDeveloperTask, type DeveloperTask, type ImplementationReady } from '@escritorio/agents';
+import type { SandboxManager } from '@escritorio/tools';
 
 function task(overrides: Partial<DeveloperTask> = {}): DeveloperTask {
   return {
@@ -74,5 +75,28 @@ describe('nextTaskStatusAfterReview', () => {
   it('esgotados os retries, bloqueia a tarefa (§13.4)', () => {
     expect(nextTaskStatusAfterReview(failed, 3, 3)).toBe('BLOCKED');
     expect(nextTaskStatusAfterReview(failed, 4, 3)).toBe('BLOCKED');
+  });
+});
+
+describe('reviewInSandbox — verificação de integridade do snapshot', () => {
+  it('reprova sem tocar a sandbox quando o hash não confere com o snapshot recebido (critério 5)', async () => {
+    const t = task();
+    const implementation: ImplementationReady = {
+      ...runMockDeveloperTask(t),
+      resulting_files: { 'solution.js': 'module.exports = () => 1;' },
+      resulting_snapshot_hash: '0'.repeat(64), // propositalmente diferente do hash real do snapshot acima
+    };
+    // Se reviewInSandbox chegar a chamar run(), este teste falha — prova que o
+    // portão de hash barra ANTES de gastar um container, não depois.
+    const sandboxNuncaChamada: SandboxManager = {
+      run: () => {
+        throw new Error('reviewInSandbox não deveria rodar a sandbox quando o hash não confere');
+      },
+    } as unknown as SandboxManager;
+
+    const { review, sandboxId } = await reviewInSandbox(sandboxNuncaChamada, t, implementation);
+    expect(review.decision).toBe('FAILED');
+    expect(review.security_flags).toContain('SNAPSHOT_HASH_MISMATCH');
+    expect(sandboxId).toBeUndefined();
   });
 });

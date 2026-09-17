@@ -74,7 +74,7 @@ export async function startRuntime({ reset = true }: { reset?: boolean } = {}): 
   dispatcher.start();
   const workerShutdown = createWorkerShutdown({
     dispatcher,
-    worker: bullWorker,
+    workers: [bullWorker],
     queues: queues.values(),
     producer,
     connection: consumer,

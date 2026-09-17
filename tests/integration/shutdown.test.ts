@@ -53,7 +53,7 @@ describe('encerramento gracioso do Worker', () => {
     const { worker } = rt;
     const shutdown = createWorkerShutdown({
       dispatcher: worker.dispatcher,
-      worker: worker.bullWorker,
+      workers: [worker.bullWorker],
       queues: worker.queues.values(),
       producer: worker.producer,
       connection: worker.consumer,

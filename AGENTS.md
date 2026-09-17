@@ -4,7 +4,7 @@ Vale para qualquer agente neste repositório (Claude, Codex, Antigravity…). Re
 
 ## 1. Fonte de verdade
 
-- Produto, arquitetura, escopo e regras: [`docs/especificacao-v1.docx`](docs/especificacao-v1.docx).
+- Produto, arquitetura, escopo e regras: [`docs/especificacao-v1.docx`](docs/especificacao-v1.docx) + [`docs/ESPECIFICACAO-ALTERACOES.md`](docs/ESPECIFICACAO-ALTERACOES.md) (emendas do dono depois da leitura inicial — prevalece sobre o `.docx` quando divergir; o `.docx` fica intocado como registro do V1 original).
 - Git: diretriz v9 (`GuilhermeSaldanha02/diretriz`), adaptada abaixo.
 - Estado do trabalho: bloco **ESTADO ATUAL** (§4) e [`docs/M1-FUNDACAO.md`](docs/M1-FUNDACAO.md).
 
@@ -31,12 +31,12 @@ Não altere a arquitetura em silêncio. Se uma decisão da especificação for i
 
 > Sobrescrever a cada sessão; o histórico é o `git log`.
 
-- **Última sessão:** 2026-09-17 (manhã, após reinício de uso) · agente: claude · branch: `feat/m2-primeiro-ciclo`
-- **Em andamento:** M2 passos 1 (outbox), 2 (máquinas de estado), 3 (contratos + agentes mock) e 4 (Sandbox Manager, `packages/tools`) concluídos e commitados. Plano e critérios em `docs/M2-PLANO.md`. M1 aprovado e integrado em `staging` e `main` (tag `m1-fundacao`).
+- **Última sessão:** 2026-09-17 (manhã) · agente: claude · branch: `feat/m2-primeiro-ciclo`
+- **Em andamento:** M2 passos 1 (outbox), 2 (máquinas de estado), 3 (contratos + agentes mock), 4 (Sandbox Manager) e 5 (Orquestrador, `apps/worker/src/orchestrator`) concluídos e commitados. Plano e critérios em `docs/M2-PLANO.md`. M1 aprovado e integrado em `staging` e `main` (tag `m1-fundacao`). Todos os 11 critérios de aceite do M2 têm prova (✅) na tabela do plano — falta só o passo 6 (API de simulação/timeline) e a validação final de fechamento.
 - **Não commitado:** nada
-- **Bloqueado / a decidir:** nada pendente de infraestrutura agora (Docker de pé, validação completa passou com 88 unitários + 37 integração após o passo 4, incluindo 14 testes de sandbox real). Duas limitações de ambiente descobertas e documentadas no `docs/M2-PLANO.md` (§4 do progresso): `pidsLimit` muito baixo trava em vez de falhar; teste de rede por hostname é flaky, usar TCP direto por IP. Testes com container de sandbox (passo 4) só rodam com RAM livre no host (máquina de 8 GB).
-- **Próximo passo:** M2 passo 5 — Orquestrador no Worker: liga `packages/agents` (Diretor/Desenvolvedor/Revisor) e `packages/tools` (Sandbox Manager) ao Event Bus de verdade, com transição atômica no banco (`UPDATE ... WHERE status = $from` na mesma transação do evento — gap deixado no passo 2). É o passo que faz os critérios 4, 5, 6, 7, 9 e 10 do M2 saírem de "pendente" para prováveis. **Antes de rodar qualquer container de sandbox, checar RAM livre no host** (máquina de 8 GB). Ao terminar o M2: parar, relatório + ZIP, revisão externa, autorização do dono.
-- **Para o outro agente saber:** antes de provar algo com a fila, confirme que não há outro Worker consumindo; no Windows um SIGTERM vindo de outro processo mata na hora, então prove sinais em Linux; testes de integração exigem `pnpm services:up`; a máquina tem 8 GB de RAM — confira a RAM livre antes de subir containers de sandbox.
+- **Bloqueado / a decidir:** nada pendente de infraestrutura. Validação completa (typecheck, lint, 89 unitários, 52 integração, build limpo de `dist/` zerado) passou depois do passo 5. Limitações de ambiente do passo 4 (`pidsLimit` baixo trava; teste de rede por hostname é flaky) seguem documentadas em `docs/M2-PLANO.md`.
+- **Próximo passo:** M2 passo 6 — API de simulação e consulta da linha do tempo (último passo do M2). Depois disso: parar, relatório + ZIP, revisão externa (mesmo chat do ChatGPT usado para M1 e para a revisão intermediária do passo 5), autorização do dono antes do M3.
+- **Para o outro agente saber:** antes de provar algo com a fila, confirme que não há outro Worker consumindo; no Windows um SIGTERM vindo de outro processo mata na hora, então prove sinais em Linux; testes de integração exigem `pnpm services:up`; a máquina tem 8 GB de RAM — confira a RAM livre antes de subir containers de sandbox (o cenário feliz do Orquestrador sobe até 2 containers, sequenciais). `docs/M2-PLANO.md` tem uma seção "Revisão externa antes do passo 5" com as decisões de design que valem para o resto do M2 (transição atômica, um job por passo pesado, terminologia do critério 5, MAX_PARALLEL_TASKS como garantia V1 single-worker).
 
 ## 5. Portões que não se pulam
 

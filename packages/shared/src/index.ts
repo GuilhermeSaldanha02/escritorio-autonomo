@@ -2,6 +2,7 @@ export * from './agents.js';
 export * from './config.js';
 export * from './lifecycle.js';
 export * from './logger.js';
+export * from './snapshot.js';
 export * from './shutdown.js';
 export * from './timeout.js';
 

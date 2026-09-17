@@ -1,4 +1,5 @@
 import { createPool } from '@escritorio/database';
+import { createDockerClient, SandboxManager } from '@escritorio/tools';
 import { createQueues, createRedisConnection, EventStore, OutboxDispatcher } from '@escritorio/events';
 import { Governor, loadConstitution } from '@escritorio/governor';
 import {
@@ -9,6 +10,7 @@ import {
   loadEnvFile,
   withTimeout,
 } from '@escritorio/shared';
+import { createOrchestratorWorker } from './orchestrator/orchestrator-worker.js';
 import { createWorkerShutdown } from './shutdown.js';
 import { createSystemWorker } from './system-worker.js';
 
@@ -41,10 +43,19 @@ async function main(): Promise<void> {
     governor,
     logger,
   });
-  await worker.waitUntilReady();
+  const sandboxManager = new SandboxManager(createDockerClient(), logger);
+  const orchestratorWorker = createOrchestratorWorker({
+    connection,
+    prefix: config.QUEUE_PREFIX,
+    pool,
+    governor,
+    sandboxManager,
+    logger,
+  });
+  await Promise.all([worker.waitUntilReady(), orchestratorWorker.waitUntilReady()]);
   logger.info(
-    { aiMode: config.AI_MODE, concurrency: governor.limits.MAX_PARALLEL_TASKS, queue: worker.name },
-    'Worker pronto e consumindo a fila',
+    { aiMode: config.AI_MODE, concurrency: governor.limits.MAX_PARALLEL_TASKS, queues: [worker.name, orchestratorWorker.name] },
+    'Worker pronto e consumindo as filas',
   );
 
   const queues = createQueues(producer, config.QUEUE_PREFIX);
@@ -56,7 +67,7 @@ async function main(): Promise<void> {
 
   const shutdown = createWorkerShutdown({
     dispatcher,
-    worker,
+    workers: [worker, orchestratorWorker],
     queues: queues.values(),
     producer,
     connection,

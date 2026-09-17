@@ -16,6 +16,7 @@
   "dependencies": {
     "@escritorio/governor": "workspace:*",
     "@escritorio/shared": "workspace:*",
+    "@escritorio/tools": "workspace:*",
     "zod": "^4.6.5"
   }
 }
