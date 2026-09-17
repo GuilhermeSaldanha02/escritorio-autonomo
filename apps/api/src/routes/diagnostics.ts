@@ -14,6 +14,7 @@ interface DiagnosticsDeps {
 const createBody = z
   .object({
     message: z.string().trim().min(1).max(280).default('ping'),
+    durationMs: z.number().int().min(0).max(5_000).optional(),
     requestedCapability: z.enum(GOVERNED_CAPABILITY_NAMES).optional(),
   })
   .strict();

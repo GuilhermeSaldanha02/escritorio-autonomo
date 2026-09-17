@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises';
 import { type Job, UnrecoverableError } from 'bullmq';
 import { diagnosticJobSchema, type EventStore } from '@escritorio/events';
 import type { GovernedAction, Governor } from '@escritorio/governor';
@@ -51,6 +52,8 @@ export function createDiagnosticProcessor({ store, governor, logger }: Deps) {
         return { outcome: 'BLOCKED', eventId: event.id, rule: decision.rule };
       }
     }
+
+    if (data.durationMs) await sleep(data.durationMs);
 
     const { event, created } = await store.append({
       type: 'TEST_JOB_COMPLETED',

@@ -39,6 +39,8 @@ const envSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'use apenas letras minúsculas, números e hífen')
     .default('escritorio'),
   CONSTITUTION_PATH: z.string().min(1).optional(),
+  /** Prazo para API/Worker encerrarem graciosamente. O orquestrador de processos precisa esperar mais que isso. */
+  SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(20_000),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

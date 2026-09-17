@@ -45,6 +45,7 @@ export const EVENT_PAYLOAD_SCHEMAS = {
   TEST_JOB_REQUESTED: z
     .object({
       message: z.string().min(1).max(280),
+      durationMs: z.number().int().min(0).max(5_000).optional(),
       requestedCapability: z.enum(GOVERNED_CAPABILITY_NAMES).optional(),
     })
     .strict(),

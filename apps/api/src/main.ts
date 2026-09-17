@@ -1,8 +1,9 @@
 import { createPool } from '@escritorio/database';
 import { createRedisConnection, createSystemQueue, EventBus, EventStore } from '@escritorio/events';
 import { Governor, loadConstitution } from '@escritorio/governor';
-import { createLogger, describeError, loadConfig, loadEnvFile } from '@escritorio/shared';
+import { createLogger, describeError, exitOnShutdownSignals, loadConfig, loadEnvFile } from '@escritorio/shared';
 import { buildServer } from './server.js';
+import { createApiShutdown } from './shutdown.js';
 
 /**
  * A API sobe mesmo com PostgreSQL ou Redis fora do ar: é o /health que
@@ -32,21 +33,15 @@ async function main(): Promise<void> {
     aiMode: config.AI_MODE,
   });
 
-  app.addHook('onClose', async () => {
-    await queue.close();
-    await redis.quit();
-    await pool.end();
+  const shutdown = createApiShutdown({
+    app,
+    queue,
+    redis,
+    pool,
+    logger,
+    timeoutMs: config.SHUTDOWN_TIMEOUT_MS,
   });
-
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-    process.once(signal, () => {
-      logger.info({ signal }, 'encerrando API');
-      app.close().catch((error: unknown) => {
-        logger.error({ err: describeError(error) }, 'falha ao encerrar');
-        process.exitCode = 1;
-      });
-    });
-  }
+  exitOnShutdownSignals(process, shutdown, (code) => process.exit(code), logger);
 
   await app.listen({ host: config.API_HOST, port: config.API_PORT });
   logger.info({ aiMode: config.AI_MODE }, 'API pronta');

@@ -5,6 +5,8 @@ import { JOB_NAMES, type DiagnosticJobData } from './queues.js';
 
 export interface DiagnosticRequest {
   message: string;
+  /** Simula um job demorado (máx. 5 s). */
+  durationMs?: number;
   /** Pede ao Worker uma capacidade governada — usado para provar o bloqueio. */
   requestedCapability?: GovernedCapability;
 }
@@ -20,9 +22,11 @@ export async function requestDiagnosticJob(
   request: DiagnosticRequest,
 ): Promise<PublishResult> {
   const correlationId = crypto.randomUUID();
-  const payload = request.requestedCapability
-    ? { message: request.message, requestedCapability: request.requestedCapability }
-    : { message: request.message };
+  const payload = {
+    message: request.message,
+    ...(request.durationMs === undefined ? {} : { durationMs: request.durationMs }),
+    ...(request.requestedCapability === undefined ? {} : { requestedCapability: request.requestedCapability }),
+  };
 
   return bus.publish(
     { type: 'TEST_JOB_REQUESTED', payload, correlationId },

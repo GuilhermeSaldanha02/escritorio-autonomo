@@ -1,7 +1,15 @@
 import { createPool } from '@escritorio/database';
 import { createRedisConnection, EventStore } from '@escritorio/events';
 import { Governor, loadConstitution } from '@escritorio/governor';
-import { createLogger, describeError, loadConfig, loadEnvFile, withTimeout } from '@escritorio/shared';
+import {
+  createLogger,
+  describeError,
+  exitOnShutdownSignals,
+  loadConfig,
+  loadEnvFile,
+  withTimeout,
+} from '@escritorio/shared';
+import { createWorkerShutdown } from './shutdown.js';
 import { createSystemWorker } from './system-worker.js';
 
 /**
@@ -34,25 +42,14 @@ async function main(): Promise<void> {
     'Worker pronto e consumindo a fila',
   );
 
-  let shuttingDown = false;
-  const shutdown = async (signal: string): Promise<void> => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    logger.info({ signal }, 'encerrando: aguardando jobs em andamento');
-    // close() espera os jobs ativos terminarem antes de soltar a fila.
-    await worker.close();
-    await connection.quit();
-    await pool.end();
-    logger.info('Worker encerrado');
-  };
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-    process.once(signal, () => {
-      shutdown(signal).catch((error: unknown) => {
-        logger.error({ err: describeError(error) }, 'falha ao encerrar');
-        process.exitCode = 1;
-      });
-    });
-  }
+  const shutdown = createWorkerShutdown({
+    worker,
+    connection,
+    pool,
+    logger,
+    timeoutMs: config.SHUTDOWN_TIMEOUT_MS,
+  });
+  exitOnShutdownSignals(process, shutdown, (code) => process.exit(code), logger);
 }
 
 main().catch((error: unknown) => {

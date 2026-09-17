@@ -11,6 +11,8 @@ export const diagnosticJobSchema = z
     requestEventId: z.uuid(),
     correlationId: z.uuid(),
     message: z.string().min(1).max(280),
+    /** Tempo que o job de diagnóstico leva para concluir — usado para provar encerramento gracioso. */
+    durationMs: z.number().int().min(0).max(5_000).optional(),
     requestedCapability: z.enum(GOVERNED_CAPABILITY_NAMES).optional(),
   })
   .strict();
