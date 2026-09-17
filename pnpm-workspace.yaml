@@ -3,5 +3,10 @@ packages:
   - apps/worker
   - packages/*
   - infrastructure/database
+
+# Scripts de instalação de dependências só rodam com decisão explícita.
 allowBuilds:
+  # Binário do esbuild, usado por tsx e Vitest.
   esbuild: true
+  # Acelerador nativo opcional do msgpackr (via BullMQ); a versão JS pura basta.
+  msgpackr-extract: false
