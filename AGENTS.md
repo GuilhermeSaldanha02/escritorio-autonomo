@@ -35,7 +35,7 @@ Não altere a arquitetura em silêncio. Se uma decisão da especificação for i
 - **Em andamento:** M2 (primeiro ciclo) autorizado pelo dono; plano e critérios em `docs/M2-PLANO.md`. M1 aprovado e integrado em `staging` e `main` (tag `m1-fundacao`).
 - **Não commitado:** nada
 - **Bloqueado / a decidir:** testes com container de sandbox só rodam com RAM livre no host (máquina de 8 GB)
-- **Próximo passo:** seguir a ordem do `docs/M2-PLANO.md` (outbox primeiro). Ao terminar o M2: parar, relatório + ZIP, revisão externa, autorização do dono.
+- **Próximo passo:** M2 passo 2 — máquinas de estado de oportunidade e tarefa (outbox concluído; ver Progresso no `docs/M2-PLANO.md`). Ao terminar o M2: parar, relatório + ZIP, revisão externa, autorização do dono.
 - **Para o outro agente saber:** antes de provar algo com a fila, confirme que não há outro Worker consumindo; no Windows um SIGTERM vindo de outro processo mata na hora, então prove sinais em Linux; testes de integração exigem `pnpm services:up`; a máquina tem 8 GB de RAM — confira a RAM livre antes de subir containers de sandbox.
 
 ## 5. Portões que não se pulam

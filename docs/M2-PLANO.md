@@ -20,7 +20,7 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 
 ## Ordem de implementação
 
-1. **Transactional Outbox** — evento e pedido de job na mesma transação; dispatcher no Worker publica no BullMQ. Elimina o evento sem job (pendência 1 do M1).
+1. ✅ **Transactional Outbox** — evento e pedido de job na mesma transação; dispatcher no Worker publica no BullMQ. Elimina o evento sem job (pendência 1 do M1).
 2. **Máquinas de estado** de oportunidade (§11) e tarefa, com transição condicional no banco + evento na mesma transação.
 3. **Contratos §13** validados (zod) e agentes determinísticos em `packages/agents`.
 4. **Sandbox Manager** em `packages/tools`: container descartável sem rede, com teto de CPU/RAM/disco/pids/tempo.
@@ -31,8 +31,8 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 
 | # | Critério | Prova esperada |
 |---|---|---|
-| 1 | Evento e job são atômicos: com Redis fora, o evento fica pendente no outbox e é publicado quando o Redis volta | teste de integração |
-| 2 | Reentrega do outbox não duplica job nem evento | teste de integração |
+| 1 | Evento e job são atômicos: com Redis fora, o evento fica pendente no outbox e é publicado quando o Redis volta | ✅ `tests/integration/outbox.test.ts` (Redis inalcançável real) |
+| 2 | Reentrega do outbox não duplica job nem evento | ✅ `outbox.test.ts`: reentrega e 3 dispatchers concorrentes |
 | 3 | Transições inválidas de oportunidade e tarefa são recusadas por código; nenhum agente declara `PAID` | testes unitários |
 | 4 | Cenário feliz percorre o fluxo alvo completo até `COMPLETED`, com todos os eventos persistidos em ordem | teste de integração com sandbox real |
 | 5 | Revisor valida em sandbox **independente** da do Desenvolvedor (container novo, código reconstruído do diff) | teste + evento com ids de sandbox distintos |
@@ -42,6 +42,17 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 | 9 | Paralelismo respeita `MAX_PARALLEL_TASKS` | configuração do Worker + teste |
 | 10 | Estado dos agentes muda durante o ciclo (`AGENT_STATE_CHANGED`) — base para o Office | teste |
 | 11 | typecheck, lint, test e build passam de estado limpo; R$0 | validação final |
+
+## Progresso
+
+### 1. Transactional Outbox — concluído (`e2a8dc5` + ajuste de padrões)
+
+- Migration `0002_outbox`; `EventBus.publish` grava evento + pedido de job numa transação; `EventBus.publishIn` compõe com outras escritas (base do Orquestrador).
+- `OutboxDispatcher` no Worker: `FOR UPDATE SKIP LOCKED`, backoff exponencial, prazo por publicação, lote de 10 e prazo de 1,5 s em produção (uma queda do Redis segura uma conexão do pool por no máximo ~15 s por ciclo).
+- A API não fala mais com o BullMQ: aceita pedidos (202) mesmo com o Redis fora.
+- **Bugs encontrados pelos testes e corrigidos:** (a) com o Redis fora, `queue.add` do BullMQ espera a conexão para sempre em vez de falhar — sem prazo, o dispatcher travaria com a transação e os locks abertos; (b) `now()` no PostgreSQL é o início da transação, então o backoff nascia vencido — trocado por `clock_timestamp()`.
+- **Prova:** 7 testes de integração do outbox (atomicidade, rollback conjunto, Redis inalcançável real + recuperação, reentrega, 3 dispatchers concorrentes com 20 jobs, fila desconhecida, API com Redis fora) + processos compilados reais: `TEST_JOB_REQUESTED` com linha no outbox publicada em 1 tentativa → `TEST_JOB_COMPLETED`.
+- **Limitação conhecida:** a reentrega deduplica pelo `jobId` enquanto o BullMQ retém o job (`removeOnComplete: 1000`, `removeOnFail: 5000`). Depois disso, uma queda exatamente entre publicar e marcar criaria um job novo; a chave de idempotência dos eventos gravados pelo job impede duplicar o efeito.
 
 ## Fora do escopo do M2
 
