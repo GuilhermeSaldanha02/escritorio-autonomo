@@ -25,7 +25,7 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 3. ✅ **Contratos §13** validados (zod) e agentes determinísticos em `packages/agents`.
 4. ✅ **Sandbox Manager** em `packages/tools`: container descartável sem rede, com teto de CPU/RAM/disco/pids/tempo.
 5. ✅ **Orquestrador** no Worker: cada passo grava transição + evento + próximo job atomicamente.
-6. **API de simulação** e consulta da linha do tempo.
+6. ✅ **API de simulação** e consulta da linha do tempo.
 
 ## Critérios de aceite do M2
 
@@ -41,7 +41,7 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 | 8 | Sandbox sem rede, sem capabilities, não-root, com teto de memória/CPU/pids/disco e tempo máximo | ✅ `tests/integration/sandbox.test.ts` (16 testes; mutação confirmada em rede e não-root; CPU verificado via `inspect().HostConfig.NanoCpus` — smoke test do valor que chega ao Docker, não benchmark de desempenho) |
 | 9 | Paralelismo respeita `MAX_PARALLEL_TASKS` | ✅ `orchestrator.test.ts` (Governor recusa `TASK_START` com o limite ocupado — garantia V1 single-worker, ver nota) |
 | 10 | Estado dos agentes muda durante o ciclo (`AGENT_STATE_CHANGED`) — base para o Office | ✅ `orchestrator.test.ts` (DESENVOLVEDOR-001/REVISOR-001 mudam de estado, eventos persistidos) |
-| 11 | typecheck, lint, test e build passam de estado limpo; R$0 | validação final |
+| 11 | typecheck, lint, test e build passam de estado limpo; R$0 | ✅ typecheck, lint, 89 unitários + 57 integração, build limpo de `dist/` zerado — R$0 |
 
 ## Progresso
 
@@ -108,6 +108,13 @@ Consultado antes de iniciar o Orquestrador (passo 5), com o progresso dos passos
 - **Simplificação consciente:** a "verificação determinística" e a decisão do Diretor rodam no mesmo job (`decide-opportunity`) em vez de jobs separados — ambas são operações rápidas, sem I/O externo, e cada sub-transição já é atômica e idempotente por si (uma reentrega no meio resume do estado real, não duplica nada). Um job por passo pesado (Desenvolvedor em sandbox, Revisor em sandbox) é onde isso realmente importa, e é o que foi feito.
 - **Fora do M2, registrado para depois:** decisões `BACKLOG`/`INVESTIGATE` do Diretor deixam a oportunidade parada em `EVALUATING` sem reavaliação futura (§19 pede provar o fluxo feliz e os bloqueios, não o backlog). `repository`/`branch` do contrato do Desenvolvedor são sintetizados (`mock://local`) — não existem no schema de `tasks` porque não há repositório real até M4+.
 - **Gap latente (não é bug no M2, apontado na revisão final do passo 5):** uma task barrada pelo `TASK_START` do Governor esgota as tentativas do job (`MAX_TASK_RETRIES + 1`, backoff exponencial) e fica parada em `ASSIGNED` sem nenhum job pendente nem evento — o sistema perde de vista o motivo. Com um único Worker isso nunca acontece na prática (a concorrência do BullMQ já é `MAX_PARALLEL_TASKS`, então o Governor nunca chega a negar), por isso o teste de paralelismo (critério 9) precisou inserir manualmente duas tasks "ocupantes" para forçar o caso. Com mais de um processo Worker, precisa de reenfileiramento com atraso (ou um evento explícito tipo `TASK_WAITING_SLOT`) em vez de um `throw` que só conta como tentativa perdida.
+
+### 6. API de simulação e timeline — concluído
+
+- `POST /simulations/opportunities` (`apps/api/src/routes/simulations.ts`): simula o Caçador descobrindo uma oportunidade — insere a linha em `opportunities` e publica `OPPORTUNITY_FOUND` com despacho para `decide-opportunity` (mesmo caminho `EventBus` → outbox → BullMQ já provado no M1/passo 1). Todos os campos têm padrão que já produz `EXECUTE` no Diretor mock, para não exigir do chamador conhecer a fórmula de score; `requiredCapabilities` permite forçar `ACTION_BLOCKED` (critério 7) via HTTP.
+- `GET /opportunities/:id/timeline`: junta a oportunidade, a task (se existir) e todos os eventos (por `opportunity_id` OU `task_id` de qualquer task da oportunidade) ordenados por `occurred_at, id` — a consulta que o Office 2D (fora do M2) vai usar para desenhar o que está acontecendo.
+- **Bug real encontrado e corrigido, não um teste flaky ignorado:** o teste do ciclo completo via API falhava de forma intermitente com a ordem dos eventos trocada (`REVIEW_PASSED` aparecendo antes de `IMPLEMENTATION_READY` na consulta, apesar da ordem causal real estar correta). Causa: `events.occurred_at` usava `now()` como `DEFAULT` — em PostgreSQL, `now()` é o instante em que a *transação* começou (`BEGIN`), não o instante do `INSERT`. Sob carga (pool de conexões concorrido, I/O do Docker, RAM baixa), uma transação pode ficar aberta um tempo antes de escrever de fato, e o `now()` capturado no `BEGIN` não reflete quando a linha realmente foi gravada — o mesmo problema já corrigido no outbox (passo 1), desta vez na tabela `events`. Corrigido pela migration `0004_occurred_at_clock_real` (`ALTER COLUMN occurred_at SET DEFAULT clock_timestamp()`). Confirmado determinístico rodando o teste 3x seguidas depois da correção — nenhuma falha.
+- **Prova:** `tests/integration/simulations.test.ts` (4 testes: cria a oportunidade e dispara o evento; rejeita capacidade fora do catálogo antes de gravar; 404 para oportunidade inexistente; acompanha via HTTP o ciclo completo até `SUBMITTED`/`COMPLETED` com os eventos em ordem causal correta).
 
 ## Fora do escopo do M2
 

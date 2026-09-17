@@ -1,0 +1,11 @@
+-- 0004 — occurred_at usa o relógio real, não o início da transação.
+--
+-- Mesmo problema já corrigido no outbox (0002/EventBus): now() em PostgreSQL
+-- é o instante em que a TRANSAÇÃO começou (BEGIN), não o instante do INSERT.
+-- Sob carga (pool de conexões concorrido, I/O do Docker, GC), uma transação
+-- pode ficar "aberta" antes de realmente escrever, e o now() capturado no
+-- BEGIN não reflete a ordem real de escrita — a linha do tempo de eventos
+-- (critério 4 do M2: "todos os eventos persistidos em ordem") pode registrar
+-- uma ordem diferente da ordem causal real. clock_timestamp() é o relógio no
+-- momento exato da chamada, dentro ou fora de transação.
+ALTER TABLE events ALTER COLUMN occurred_at SET DEFAULT clock_timestamp();

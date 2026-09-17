@@ -32,6 +32,9 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0004_occurred_at_clock_real']);
+    expect(await publicTables()).toContain('outbox'); // 0004 só muda um DEFAULT, não uma tabela
+
     expect(await migrateDown(pool, 1)).toEqual(['0003_orquestrador']);
     expect(await publicTables()).toContain('outbox'); // 0003 só remove uma coluna, não uma tabela
 
@@ -41,10 +44,10 @@ describe('migrations', () => {
     expect(await migrateDown(pool, 1)).toEqual(['0001_nucleo']);
     expect(await publicTables()).toEqual(['schema_migrations']);
 
-    expect(await migrateUp(pool)).toEqual(['0001_nucleo', '0002_outbox', '0003_orquestrador']);
+    expect(await migrateUp(pool)).toEqual(['0001_nucleo', '0002_outbox', '0003_orquestrador', '0004_occurred_at_clock_real']);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
-      applied: ['0001_nucleo', '0002_outbox', '0003_orquestrador'],
+      applied: ['0001_nucleo', '0002_outbox', '0003_orquestrador', '0004_occurred_at_clock_real'],
       pending: [],
     });
   });

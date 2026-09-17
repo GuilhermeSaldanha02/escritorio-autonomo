@@ -6,6 +6,7 @@ import type { Governor } from '@escritorio/governor';
 import type { AiMode, Logger } from '@escritorio/shared';
 import { diagnosticsRoutes } from './routes/diagnostics.js';
 import { healthRoutes } from './routes/health.js';
+import { simulationsRoutes } from './routes/simulations.js';
 
 export interface ApiDeps {
   logger: Logger;
@@ -28,6 +29,11 @@ export async function buildServer(deps: ApiDeps) {
   await app.register(diagnosticsRoutes, {
     bus: deps.bus,
     store: deps.store,
+    governor: deps.governor,
+  });
+  await app.register(simulationsRoutes, {
+    db: deps.db,
+    bus: deps.bus,
     governor: deps.governor,
   });
 
