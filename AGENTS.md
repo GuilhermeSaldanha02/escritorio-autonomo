@@ -31,11 +31,11 @@ Não altere a arquitetura em silêncio. Se uma decisão da especificação for i
 
 > Sobrescrever a cada sessão; o histórico é o `git log`.
 
-- **Última sessão:** 2026-09-17 · agente: claude · branch: `feat/m2-primeiro-ciclo`
-- **Em andamento:** M2 (primeiro ciclo) autorizado pelo dono; plano e critérios em `docs/M2-PLANO.md`. M1 aprovado e integrado em `staging` e `main` (tag `m1-fundacao`).
+- **Última sessão:** 2026-09-17 (manhã, após reinício de uso) · agente: claude · branch: `feat/m2-primeiro-ciclo`
+- **Em andamento:** M2 passos 1 (outbox) e 2 (máquinas de estado, só em memória) concluídos e commitados. Plano e critérios em `docs/M2-PLANO.md`. M1 aprovado e integrado em `staging` e `main` (tag `m1-fundacao`).
 - **Não commitado:** nada
-- **Bloqueado / a decidir:** testes com container de sandbox só rodam com RAM livre no host (máquina de 8 GB)
-- **Próximo passo:** M2 passo 2 — máquinas de estado de oportunidade e tarefa (outbox concluído; ver Progresso no `docs/M2-PLANO.md`). Ao terminar o M2: parar, relatório + ZIP, revisão externa, autorização do dono.
+- **Bloqueado / a decidir:** Docker Desktop caiu sozinho durante a sessão (provável ociosidade da máquina) — os 23 testes de integração **não foram reexecutados** desde o commit das máquinas de estado (`e61a909`); só typecheck/lint/build/unitários (55) foram reverificados. Rode `pnpm services:up && pnpm test:integration` antes de confiar no estado. Testes com container de sandbox (passo 4) só rodam com RAM livre no host (máquina de 8 GB).
+- **Próximo passo:** M2 passo 3 — contratos §13 (zod) e agentes determinísticos em `packages/agents`. Antes de codar, confirmar `pnpm services:up` e rerodar `pnpm test:integration` (ver bloqueio acima). Passo 5 (Orquestrador) precisa fechar o gap de transição atômica deixado no passo 2. Ao terminar o M2: parar, relatório + ZIP, revisão externa, autorização do dono.
 - **Para o outro agente saber:** antes de provar algo com a fila, confirme que não há outro Worker consumindo; no Windows um SIGTERM vindo de outro processo mata na hora, então prove sinais em Linux; testes de integração exigem `pnpm services:up`; a máquina tem 8 GB de RAM — confira a RAM livre antes de subir containers de sandbox.
 
 ## 5. Portões que não se pulam

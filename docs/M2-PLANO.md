@@ -21,7 +21,7 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 ## Ordem de implementação
 
 1. ✅ **Transactional Outbox** — evento e pedido de job na mesma transação; dispatcher no Worker publica no BullMQ. Elimina o evento sem job (pendência 1 do M1).
-2. **Máquinas de estado** de oportunidade (§11) e tarefa, com transição condicional no banco + evento na mesma transação.
+2. ✅ **Máquinas de estado** de oportunidade (§11) e tarefa — validação pura em código (`packages/shared/src/lifecycle.ts`). **Falta:** transição condicional atômica no banco (`UPDATE ... WHERE status = $from`) na mesma transação do evento — isso é trabalho do passo 5 (Orquestrador), não deste passo.
 3. **Contratos §13** validados (zod) e agentes determinísticos em `packages/agents`.
 4. **Sandbox Manager** em `packages/tools`: container descartável sem rede, com teto de CPU/RAM/disco/pids/tempo.
 5. **Orquestrador** no Worker: cada passo grava transição + evento + próximo job atomicamente.
@@ -33,7 +33,7 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 |---|---|---|
 | 1 | Evento e job são atômicos: com Redis fora, o evento fica pendente no outbox e é publicado quando o Redis volta | ✅ `tests/integration/outbox.test.ts` (Redis inalcançável real) |
 | 2 | Reentrega do outbox não duplica job nem evento | ✅ `outbox.test.ts`: reentrega e 3 dispatchers concorrentes |
-| 3 | Transições inválidas de oportunidade e tarefa são recusadas por código; nenhum agente declara `PAID` | testes unitários |
+| 3 | Transições inválidas de oportunidade e tarefa são recusadas por código; nenhum agente declara `PAID` | ✅ `packages/shared/test/lifecycle.test.ts` (18 casos: caminho feliz, pulos de etapa, ator errado, estados finais) |
 | 4 | Cenário feliz percorre o fluxo alvo completo até `COMPLETED`, com todos os eventos persistidos em ordem | teste de integração com sandbox real |
 | 5 | Revisor valida em sandbox **independente** da do Desenvolvedor (container novo, código reconstruído do diff) | teste + evento com ids de sandbox distintos |
 | 6 | Revisão reprovada volta ao Desenvolvedor; após `MAX_TASK_RETRIES` a tarefa vira `BLOCKED` com `TASK_BLOCKED` | teste de integração |
@@ -53,6 +53,13 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 - **Bugs encontrados pelos testes e corrigidos:** (a) com o Redis fora, `queue.add` do BullMQ espera a conexão para sempre em vez de falhar — sem prazo, o dispatcher travaria com a transação e os locks abertos; (b) `now()` no PostgreSQL é o início da transação, então o backoff nascia vencido — trocado por `clock_timestamp()`.
 - **Prova:** 7 testes de integração do outbox (atomicidade, rollback conjunto, Redis inalcançável real + recuperação, reentrega, 3 dispatchers concorrentes com 20 jobs, fila desconhecida, API com Redis fora) + processos compilados reais: `TEST_JOB_REQUESTED` com linha no outbox publicada em 1 tentativa → `TEST_JOB_COMPLETED`.
 - **Limitação conhecida:** a reentrega deduplica pelo `jobId` enquanto o BullMQ retém o job (`removeOnComplete: 1000`, `removeOnFail: 5000`). Depois disso, uma queda exatamente entre publicar e marcar criaria um job novo; a chave de idempotência dos eventos gravados pelo job impede duplicar o efeito.
+
+### 2. Máquinas de estado — parcialmente concluído (`e61a909`)
+
+- `packages/shared/src/lifecycle.ts`: `OPPORTUNITY_STATUSES`/`TASK_STATUSES` (§11), grafo de transições válidas, `Actor` explícito (`agent` vs `system`). `assertOpportunityTransition`/`assertTaskTransition` lançam `InvalidTransitionError`.
+- Fatos externos (`ACCEPTED`, `PAYMENT_PENDING`, `PAID`) só por `system`; `PAID` exige especificamente `PAYMENT_CONFIRMATION` — nem o Orquestrador, nem o fundador bastam. Nenhum agente pode declarar nenhum dos três.
+- **Gap conhecido, deixado para o passo 5:** isto é validação pura em memória. As tabelas `opportunities`/`tasks` (migration `0001`) só têm `CHECK` de valor válido, não de transição válida — um `UPDATE` direto ainda pode pular etapa. A garantia real vem quando o Orquestrador fizer `UPDATE ... WHERE status = $from` condicional, na mesma transação do evento (mesmo padrão do outbox). Até lá, `assertOpportunityTransition`/`assertTaskTransition` protegem quem passa por elas, não o banco.
+- **Prova:** 8 testes unitários (typecheck/lint limpos, build de todos os pacotes limpo a partir de estado zerado).
 
 ## Fora do escopo do M2
 
