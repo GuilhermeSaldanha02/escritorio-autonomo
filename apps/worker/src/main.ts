@@ -48,7 +48,9 @@ async function main(): Promise<void> {
   );
 
   const queues = createQueues(producer, config.QUEUE_PREFIX);
-  const dispatcher = new OutboxDispatcher({ pool, queues, logger });
+  // Lote e prazo curtos: com o Redis fora, a transação do lote segura uma conexão
+  // do pool (máx. 5) por até batchSize × publishTimeoutMs.
+  const dispatcher = new OutboxDispatcher({ pool, queues, logger, batchSize: 10, publishTimeoutMs: 1_500 });
   dispatcher.start();
   logger.info({ queues: [...queues.keys()] }, 'dispatcher do outbox iniciado');
 
