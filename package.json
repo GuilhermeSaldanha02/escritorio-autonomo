@@ -1,0 +1,47 @@
+{
+  "name": "escritorio-autonomo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Empresa digital composta por agentes autônomos — monorepo da V1",
+  "packageManager": "pnpm@11.2.2",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "prepare": "node .githooks/install.mjs",
+    "services:up": "docker compose up -d --wait",
+    "services:down": "docker compose down",
+    "db:migrate": "pnpm --filter @escritorio/database run migrate",
+    "db:rollback": "pnpm --filter @escritorio/database run rollback",
+    "db:seed": "pnpm --filter @escritorio/database run seed",
+    "dev": "pnpm --parallel --filter @escritorio/api --filter @escritorio/worker run dev",
+    "dev:api": "pnpm --filter @escritorio/api run dev",
+    "dev:worker": "pnpm --filter @escritorio/worker run dev",
+    "build": "pnpm -r run build",
+    "start:api": "node apps/api/dist/main.js",
+    "start:worker": "node apps/worker/dist/main.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "pnpm run test:unit && pnpm run test:integration",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "devDependencies": {
+    "@escritorio/api": "workspace:*",
+    "@escritorio/database": "workspace:*",
+    "@escritorio/events": "workspace:*",
+    "@escritorio/governor": "workspace:*",
+    "@escritorio/shared": "workspace:*",
+    "@escritorio/worker": "workspace:*",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.5",
+    "bullmq": "^6.3.6",
+    "eslint": "^10.10.0",
+    "ioredis": "5.11.1",
+    "tsx": "^4.23.13",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.1"
+  }
+}

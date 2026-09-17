@@ -1,0 +1,40 @@
+# Constituição do Escritório Autônomo — V1
+#
+# Fonte das regras que o Governor aplica por código (especificação §3 e §8.3).
+# Prompts não são mecanismo de segurança: estas regras valem mesmo que um
+# agente "decida" o contrário.
+#
+# Nenhum agente pode alterar este arquivo (ALLOW_SELF_MODIFICATION=false).
+# As proibições abaixo são invariantes da V1: o esquema em
+# packages/governor/src/constitution.ts recusa `true` em qualquer uma delas.
+# Mudar isso exige alteração de código revisada pelo fundador.
+
+versao: 1
+
+free_first:
+  # Ordem de preferência de recursos (§3). O primeiro que resolve vence.
+  prioridades:
+    - codigo_deterministico
+    - mocks_simulacoes
+    - open_source_local
+    - modelo_ia_local
+    - free_tier
+    - api_paga_justificada
+  # Meta durante o desenvolvimento: R$0 em serviços externos.
+  DEVELOPMENT_EXTERNAL_SERVICES_TARGET_BRL: 0
+  # Bootstrap experimental futuro: subsídio do fundador, nunca receita.
+  EXPERIMENTAL_BOOTSTRAP_MAX_BRL: 5
+
+permissoes:
+  DIRECT_OUTREACH: false # WhatsApp, Instagram, cold email (§10)
+  ALLOW_DEBT: false
+  ALLOW_TRADING: false
+  ALLOW_CRYPTO_MINING: false
+  ALLOW_UNSCOPED_SECURITY_TESTING: false
+  ALLOW_SECRET_ACCESS: false
+  ALLOW_SELF_MODIFICATION: false
+  AUTO_SPEND: false # gasto só com aprovação explícita do fundador
+
+limites:
+  MAX_TASK_RETRIES: 3
+  MAX_PARALLEL_TASKS: 2
