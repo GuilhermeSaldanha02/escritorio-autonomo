@@ -31,12 +31,12 @@ Não altere a arquitetura em silêncio. Se uma decisão da especificação for i
 
 > Sobrescrever a cada sessão; o histórico é o `git log`.
 
-- **Última sessão:** 2026-09-17 · agente: claude · branch: `feat/m1-fundacao`
-- **Em andamento:** M1 implementado, pendências 2 e 3 corrigidas e **M1 aprovado na revisão externa (ChatGPT)** — `docs/M1-FUNDACAO.md` §0
+- **Última sessão:** 2026-09-17 · agente: claude · branch: `feat/m2-primeiro-ciclo`
+- **Em andamento:** M2 (primeiro ciclo) autorizado pelo dono; plano e critérios em `docs/M2-PLANO.md`. M1 aprovado e integrado em `staging` e `main` (tag `m1-fundacao`).
 - **Não commitado:** nada
-- **Bloqueado / a decidir:** merge `feat/m1-fundacao` → `staging` → `main` depende da revisão do dono; repositório só local (sem remoto)
-- **Próximo passo:** dono autoriza (ou não) o M2 e a integração em `staging`/`main`. Se autorizado, a primeira tarefa do M2 é o Transactional Outbox. **Não iniciar o M2 sem autorização do dono.**
-- **Para o outro agente saber:** antes de provar algo com a fila, confirme que não há outro Worker consumindo; no Windows um SIGTERM vindo de outro processo mata na hora, então prove sinais em Linux; testes de integração exigem `pnpm services:up`; a máquina de desenvolvimento tem 8 GB de RAM — não subir serviços além de PostgreSQL e Redis sem necessidade.
+- **Bloqueado / a decidir:** testes com container de sandbox só rodam com RAM livre no host (máquina de 8 GB)
+- **Próximo passo:** seguir a ordem do `docs/M2-PLANO.md` (outbox primeiro). Ao terminar o M2: parar, relatório + ZIP, revisão externa, autorização do dono.
+- **Para o outro agente saber:** antes de provar algo com a fila, confirme que não há outro Worker consumindo; no Windows um SIGTERM vindo de outro processo mata na hora, então prove sinais em Linux; testes de integração exigem `pnpm services:up`; a máquina tem 8 GB de RAM — confira a RAM livre antes de subir containers de sandbox.
 
 ## 5. Portões que não se pulam
 
