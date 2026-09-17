@@ -32,10 +32,10 @@ Não altere a arquitetura em silêncio. Se uma decisão da especificação for i
 > Sobrescrever a cada sessão; o histórico é o `git log`.
 
 - **Última sessão:** 2026-09-17 (manhã, após reinício de uso) · agente: claude · branch: `feat/m2-primeiro-ciclo`
-- **Em andamento:** M2 passos 1 (outbox) e 2 (máquinas de estado, só em memória) concluídos e commitados. Plano e critérios em `docs/M2-PLANO.md`. M1 aprovado e integrado em `staging` e `main` (tag `m1-fundacao`).
+- **Em andamento:** M2 passos 1 (outbox), 2 (máquinas de estado) e 3 (contratos §13 + Diretor/Desenvolvedor/Revisor mock, `packages/agents`) concluídos e commitados. Plano e critérios em `docs/M2-PLANO.md`. M1 aprovado e integrado em `staging` e `main` (tag `m1-fundacao`).
 - **Não commitado:** nada
-- **Bloqueado / a decidir:** Docker caiu e foi religado nesta sessão; validação completa a partir de estado limpo reexecutada com sucesso (typecheck, lint, 55 unitários, 23 integração, build). Testes com container de sandbox (passo 4) só rodam com RAM livre no host (máquina de 8 GB).
-- **Próximo passo:** M2 passo 3 — contratos §13 (zod) e agentes determinísticos em `packages/agents`. Antes de codar, confirmar `pnpm services:up` e rerodar `pnpm test:integration` (ver bloqueio acima). Passo 5 (Orquestrador) precisa fechar o gap de transição atômica deixado no passo 2. Ao terminar o M2: parar, relatório + ZIP, revisão externa, autorização do dono.
+- **Bloqueado / a decidir:** nada pendente de infraestrutura agora (Docker de pé, validação completa passou com 88 unitários + 23 integração após o passo 3). Testes com container de sandbox (passo 4) só rodam com RAM livre no host (máquina de 8 GB).
+- **Próximo passo:** M2 passo 4 — Sandbox Manager (`packages/tools`): container descartável sem rede, com teto de CPU/RAM/disco/pids/tempo. **Antes de rodar qualquer container de sandbox, checar RAM livre no host** (máquina de 8 GB) — não subir sem folga. Passo 5 (Orquestrador) ainda precisa fechar o gap de transição atômica no banco deixado no passo 2, e é quem liga `packages/agents` ao Event Bus/Worker de verdade. Ao terminar o M2: parar, relatório + ZIP, revisão externa, autorização do dono.
 - **Para o outro agente saber:** antes de provar algo com a fila, confirme que não há outro Worker consumindo; no Windows um SIGTERM vindo de outro processo mata na hora, então prove sinais em Linux; testes de integração exigem `pnpm services:up`; a máquina tem 8 GB de RAM — confira a RAM livre antes de subir containers de sandbox.
 
 ## 5. Portões que não se pulam

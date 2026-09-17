@@ -22,7 +22,7 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 
 1. ✅ **Transactional Outbox** — evento e pedido de job na mesma transação; dispatcher no Worker publica no BullMQ. Elimina o evento sem job (pendência 1 do M1).
 2. ✅ **Máquinas de estado** de oportunidade (§11) e tarefa — validação pura em código (`packages/shared/src/lifecycle.ts`). **Falta:** transição condicional atômica no banco (`UPDATE ... WHERE status = $from`) na mesma transação do evento — isso é trabalho do passo 5 (Orquestrador), não deste passo.
-3. **Contratos §13** validados (zod) e agentes determinísticos em `packages/agents`.
+3. ✅ **Contratos §13** validados (zod) e agentes determinísticos em `packages/agents`.
 4. **Sandbox Manager** em `packages/tools`: container descartável sem rede, com teto de CPU/RAM/disco/pids/tempo.
 5. **Orquestrador** no Worker: cada passo grava transição + evento + próximo job atomicamente.
 6. **API de simulação** e consulta da linha do tempo.
@@ -60,6 +60,14 @@ Agentes nunca se chamam: `AGENTE → EVENTO → ORQUESTRADOR → FILA → OUTRO 
 - Fatos externos (`ACCEPTED`, `PAYMENT_PENDING`, `PAID`) só por `system`; `PAID` exige especificamente `PAYMENT_CONFIRMATION` — nem o Orquestrador, nem o fundador bastam. Nenhum agente pode declarar nenhum dos três.
 - **Gap conhecido, deixado para o passo 5:** isto é validação pura em memória. As tabelas `opportunities`/`tasks` (migration `0001`) só têm `CHECK` de valor válido, não de transição válida — um `UPDATE` direto ainda pode pular etapa. A garantia real vem quando o Orquestrador fizer `UPDATE ... WHERE status = $from` condicional, na mesma transação do evento (mesmo padrão do outbox). Até lá, `assertOpportunityTransition`/`assertTaskTransition` protegem quem passa por elas, não o banco.
 - **Prova:** 8 testes unitários (typecheck/lint limpos, build de todos os pacotes limpo a partir de estado zerado).
+
+### 3. Contratos e agentes mock — concluído (`844d27b`)
+
+- `packages/agents`: contratos §13.1–§13.4 (zod, `.strict()`), Diretor (`decide` + `authorizeExecution`), Desenvolvedor (`runMockDeveloperTask`, mock explícito) e Revisor (`decideReview` + `nextTaskStatusAfterReview`).
+- **Separação propositalmente reforçada:** `decide()` não recebe o Governor (o Diretor não pode alterá-lo nem contorná-lo); `authorizeExecution()` é o segundo portão obrigatório mesmo com `EXECUTE`, e só ele pode negar por proibição. `decideReview()` não recebe quem implementou — nunca aprova o próprio trabalho de quem chama.
+- Fórmula de score do Diretor é provisória e documentada como tal — dado real de mercado só chega no M4 (Caçador real); nenhum dado de negócio foi inventado, é heurística de infraestrutura para provar o fluxo.
+- **Prova:** 33 testes unitários (contratos rejeitam payload malformado/campo extra; Diretor determinístico e sensível a `automation_allowed`/`reward_verified`/score; Governor bloqueia `EXECUTE` proposto pelo Diretor quando a capacidade exigida é proibida; Revisor reprova com build quebrado, teste falho ou qualquer alerta de segurança; retries até `MAX_TASK_RETRIES` voltam ao Desenvolvedor, depois `BLOCKED`).
+- **Ainda não wired a nada:** este pacote não fala com o Event Bus, o banco nem o Worker. É lógica pura, testável sem Docker. A ligação (persistir cada transição, publicar eventos, criar a Task real) é o Orquestrador — passo 5.
 
 ## Fora do escopo do M2
 
