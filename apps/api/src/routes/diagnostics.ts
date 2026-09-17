@@ -1,4 +1,3 @@
-import type { Queue } from 'bullmq';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { type EventBus, type EventStore, requestDiagnosticJob } from '@escritorio/events';
@@ -7,7 +6,6 @@ import { GOVERNED_CAPABILITY_NAMES, type Governor } from '@escritorio/governor';
 interface DiagnosticsDeps {
   bus: EventBus;
   store: EventStore;
-  queue: Queue;
   governor: Governor;
 }
 
@@ -32,7 +30,7 @@ export async function diagnosticsRoutes(app: FastifyInstance, deps: DiagnosticsD
       return reply.code(400).send({ error: 'VALIDATION_ERROR', issues: z.treeifyError(body.error) });
     }
 
-    const result = await requestDiagnosticJob(deps.bus, deps.queue, deps.governor, body.data);
+    const result = await requestDiagnosticJob(deps.bus, deps.governor, body.data);
     return reply.code(202).send({
       jobId: result.jobId,
       requestEventId: result.event.id,

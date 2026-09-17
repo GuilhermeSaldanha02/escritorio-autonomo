@@ -3,7 +3,7 @@ import { INITIAL_AGENTS, migrateDown, migrateUp, migrationStatus, seedInitialAge
 import { EventStore } from '@escritorio/events';
 import { createTestPool, resetDatabase } from './support.js';
 
-const M1_TABLES = ['agents', 'events', 'financial_ledger', 'model_calls', 'opportunities', 'tasks'];
+const TABLES = ['agents', 'events', 'financial_ledger', 'model_calls', 'opportunities', 'outbox', 'tasks'];
 
 let pool: Pool;
 
@@ -25,19 +25,22 @@ afterAll(async () => {
 });
 
 describe('migrations', () => {
-  it('criam as seis tabelas do M1 e a extensão pgvector', async () => {
-    expect(await publicTables()).toEqual([...M1_TABLES, 'schema_migrations'].sort());
+  it('criam as seis tabelas do M1, o outbox do M2 e a extensão pgvector', async () => {
+    expect(await publicTables()).toEqual([...TABLES, 'schema_migrations'].sort());
     const { rows } = await pool.query(`SELECT extname FROM pg_extension WHERE extname = 'vector'`);
     expect(rows).toHaveLength(1);
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0002_outbox']);
+    expect(await publicTables()).not.toContain('outbox');
+
     expect(await migrateDown(pool, 1)).toEqual(['0001_nucleo']);
     expect(await publicTables()).toEqual(['schema_migrations']);
 
-    expect(await migrateUp(pool)).toEqual(['0001_nucleo']);
+    expect(await migrateUp(pool)).toEqual(['0001_nucleo', '0002_outbox']);
     expect(await migrateUp(pool)).toEqual([]);
-    expect(await migrationStatus(pool)).toEqual({ applied: ['0001_nucleo'], pending: [] });
+    expect(await migrationStatus(pool)).toEqual({ applied: ['0001_nucleo', '0002_outbox'], pending: [] });
   });
 });
 

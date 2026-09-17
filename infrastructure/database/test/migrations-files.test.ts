@@ -15,7 +15,7 @@ function tempDir(files: Record<string, string>): string {
 describe('arquivos de migration', () => {
   it('toda migration do repositório tem up e down, em ordem', () => {
     const migrations = readMigrations();
-    expect(migrations.map((m) => m.id)).toEqual(['0001_nucleo']);
+    expect(migrations.map((m) => m.id)).toEqual(['0001_nucleo', '0002_outbox']);
   });
 
   it('a migration inicial cria e reverte as seis tabelas do M1', () => {

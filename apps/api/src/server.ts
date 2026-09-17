@@ -1,4 +1,3 @@
-import type { Queue } from 'bullmq';
 import Fastify from 'fastify';
 import type { Redis } from 'ioredis';
 import type { Queryable } from '@escritorio/database';
@@ -12,7 +11,6 @@ export interface ApiDeps {
   logger: Logger;
   db: Queryable;
   redis: Redis;
-  queue: Queue;
   bus: EventBus;
   store: EventStore;
   governor: Governor;
@@ -30,7 +28,6 @@ export async function buildServer(deps: ApiDeps) {
   await app.register(diagnosticsRoutes, {
     bus: deps.bus,
     store: deps.store,
-    queue: deps.queue,
     governor: deps.governor,
   });
 

@@ -1,5 +1,5 @@
 import { createPool } from '@escritorio/database';
-import { createRedisConnection, createSystemQueue, EventBus, EventStore } from '@escritorio/events';
+import { createRedisConnection, EventBus, EventStore } from '@escritorio/events';
 import { Governor, loadConstitution } from '@escritorio/governor';
 import { createLogger, describeError, exitOnShutdownSignals, loadConfig, loadEnvFile } from '@escritorio/shared';
 import { buildServer } from './server.js';
@@ -18,16 +18,13 @@ async function main(): Promise<void> {
   const pool = createPool(config.DATABASE_URL, logger, 'escritorio-api');
   const redis = createRedisConnection(config.REDIS_URL, 'producer', 'escritorio-api');
   redis.on('error', (error) => logger.warn({ err: describeError(error) }, 'erro de conexão com Redis'));
-  const queue = createSystemQueue(redis, config.QUEUE_PREFIX);
-  queue.on('error', (error) => logger.warn({ err: describeError(error) }, 'erro na fila BullMQ'));
   const store = new EventStore(pool);
 
   const app = await buildServer({
     logger,
     db: pool,
     redis,
-    queue,
-    bus: new EventBus(store),
+    bus: new EventBus(pool),
     store,
     governor,
     aiMode: config.AI_MODE,
@@ -35,7 +32,6 @@ async function main(): Promise<void> {
 
   const shutdown = createApiShutdown({
     app,
-    queue,
     redis,
     pool,
     logger,

@@ -34,3 +34,8 @@ export function createRedisConnection(url: string, role: 'producer' | 'consumer'
 export function createSystemQueue(connection: Redis, prefix: string): Queue {
   return new Queue(QUEUE_NAMES.SYSTEM, { connection, prefix });
 }
+
+/** Todas as filas conhecidas, por nome — o que o `OutboxDispatcher` usa para publicar. */
+export function createQueues(connection: Redis, prefix: string): Map<string, Queue> {
+  return new Map(Object.values(QUEUE_NAMES).map((name) => [name, new Queue(name, { connection, prefix })]));
+}

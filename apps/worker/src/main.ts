@@ -1,5 +1,5 @@
 import { createPool } from '@escritorio/database';
-import { createRedisConnection, EventStore } from '@escritorio/events';
+import { createQueues, createRedisConnection, EventStore, OutboxDispatcher } from '@escritorio/events';
 import { Governor, loadConstitution } from '@escritorio/governor';
 import {
   createLogger,
@@ -24,9 +24,14 @@ async function main(): Promise<void> {
 
   const pool = createPool(config.DATABASE_URL, logger, 'escritorio-worker');
   const connection = createRedisConnection(config.REDIS_URL, 'consumer', 'escritorio-worker');
+  const producer = createRedisConnection(config.REDIS_URL, 'producer', 'escritorio-worker-outbox');
+  producer.on('error', (error) => logger.warn({ err: describeError(error) }, 'erro no Redis do dispatcher'));
 
   await withTimeout(pool.query('SELECT 1'), 10_000, 'PostgreSQL');
   await withTimeout(connection.ping(), 10_000, 'Redis');
+  if (producer.status !== 'ready') {
+    await withTimeout(new Promise((resolve) => producer.once('ready', resolve)), 10_000, 'Redis (dispatcher)');
+  }
   logger.info('PostgreSQL e Redis conectados');
 
   const worker = createSystemWorker({
@@ -42,8 +47,16 @@ async function main(): Promise<void> {
     'Worker pronto e consumindo a fila',
   );
 
+  const queues = createQueues(producer, config.QUEUE_PREFIX);
+  const dispatcher = new OutboxDispatcher({ pool, queues, logger });
+  dispatcher.start();
+  logger.info({ queues: [...queues.keys()] }, 'dispatcher do outbox iniciado');
+
   const shutdown = createWorkerShutdown({
+    dispatcher,
     worker,
+    queues: queues.values(),
+    producer,
     connection,
     pool,
     logger,

@@ -1,4 +1,3 @@
-import type { Queue } from 'bullmq';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildServer } from '@escritorio/api';
 import { createPool, type Pool } from '@escritorio/database';
@@ -26,8 +25,7 @@ beforeAll(async () => {
     logger,
     db: pool,
     redis,
-    queue: {} as Queue,
-    bus: new EventBus(store),
+    bus: new EventBus(pool),
     store,
     governor: new Governor(loadConstitution()),
     aiMode: 'mock',
