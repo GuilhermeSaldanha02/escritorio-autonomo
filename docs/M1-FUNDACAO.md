@@ -2,6 +2,7 @@
 
 - **Data:** 2026-09-17 · **Agente:** Claude (Opus 5) · **Branch:** `feat/m1-fundacao` (saindo de `staging`, que sai de `main`)
 - **Estado:** concluído e validado localmente. **Aguardando revisão do dono. M2 não iniciado.**
+- **Revisão 2 (mesmo dia):** pendências 2 (encerramento gracioso) e 3 (`/health` com `"error":"Error"`) corrigidas — ver §17a.
 - **Repositório:** só local em `C:\escritorio-autonomo`, sem remoto (decisão do dono).
 
 ---
@@ -19,10 +20,11 @@
 | Migration | `0001_nucleo` | 6 tabelas + pgvector; `events` e `financial_ledger` append-only por trigger |
 | Event Bus | `packages/events` | Catálogo de 25 eventos, EventStore idempotente, EventBus (persiste → enfileira) |
 | Fila | `packages/events` | BullMQ fila `system`, job `diagnostic`, tentativas = 1 + `MAX_TASK_RETRIES` |
-| Worker | `apps/worker` | Processo independente; concorrência = `MAX_PARALLEL_TASKS`; Governor antes de agir |
+| Worker | `apps/worker` | Processo independente; concorrência = `MAX_PARALLEL_TASKS`; Governor antes de agir; encerramento gracioso |
 | API | `apps/api` | Fastify: `GET /health`, `POST /diagnostics/test-jobs`, `GET /events` |
 | Infra | `docker-compose.yml` | `pgvector/pgvector:pg17` (teto 384 MB) + `redis:7.4-alpine` (teto 128 MB), portas só em 127.0.0.1 |
-| Testes | `*/test`, `tests/integration` | 32 unitários + 12 de integração com serviços reais |
+| Encerramento | `packages/shared/src/shutdown.ts` | Etapas em ordem, prazo `SHUTDOWN_TIMEOUT_MS`, segundo sinal força saída |
+| Testes | `*/test`, `tests/integration` | 47 unitários + 16 de integração com serviços reais |
 
 ## 2. Árvore de arquivos
 
@@ -30,20 +32,20 @@
 .
 ├── .env.example
 ├── .gitattributes
-├── .githooks/pre-commit
+├── .githooks/{pre-commit,install.mjs}
 ├── .gitignore
 ├── AGENTS.md
 ├── README.md
 ├── apps/
 │   ├── api/
 │   │   ├── package.json · tsconfig.build.json
-│   │   ├── src/{index,main,server}.ts
+│   │   ├── src/{index,main,server,shutdown}.ts
 │   │   ├── src/routes/{diagnostics,health}.ts
 │   │   └── test/health.test.ts
 │   ├── office/README.md               (reservado para o M7)
 │   └── worker/
 │       ├── package.json · tsconfig.build.json
-│       └── src/{diagnostic-processor,index,main,system-worker}.ts
+│       └── src/{diagnostic-processor,index,main,shutdown,system-worker}.ts
 ├── config/constitution.yaml
 ├── docker-compose.yml
 ├── docs/
@@ -61,13 +63,13 @@
 ├── packages/
 │   ├── events/   src/{bus,catalog,diagnostic,index,queues,store}.ts
 │   ├── governor/ src/{constitution,governor,index}.ts · test/{constitution,governor}.test.ts
-│   └── shared/   src/{agents,config,index,logger,timeout}.ts · test/config.test.ts
-├── tests/integration/{database,pipeline}.test.ts · support.ts
+│   └── shared/   src/{agents,config,index,logger,shutdown,timeout}.ts · test/{config,shutdown}.test.ts
+├── tests/integration/{database,health-degraded,pipeline,shutdown}.test.ts · support.ts
 ├── tsconfig.base.json · tsconfig.json
 └── vitest.{unit,integration}.config.ts
 ```
 
-~2.000 linhas de TypeScript (incluindo 700 de teste), 1 migration SQL.
+~2.500 linhas de TypeScript (incluindo ~1.000 de teste), 1 migration SQL.
 
 ## 3. Branch
 
@@ -78,6 +80,10 @@
 Todos em pt-BR, Conventional Commits, com trailer `Agente: claude`. Cada um passou pelo hook (lint + typecheck + unitários).
 
 ```
+docs: Atualiza relatório do M1 com as pendências 2 e 3 resolvidas
+fix: Permite instalar dependências sem git disponível
+fix: Torna o encerramento gracioso testável e com prazo
+fix: Reporta código estável de falha no /health
 docs: Adiciona relatório do Milestone 1 e protocolo entre agentes
 docs: Adiciona instruções de instalação e execução local
 test: Adiciona testes de integração do Milestone 1
@@ -121,6 +127,7 @@ Validação: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`. Detalhes 
 | `API_HOST` / `API_PORT` | não | `127.0.0.1` / `3000` | |
 | `QUEUE_PREFIX` | não | `escritorio` | prefixo das chaves BullMQ |
 | `CONSTITUTION_PATH` | não | `config/constitution.yaml` | |
+| `SHUTDOWN_TIMEOUT_MS` | não | `20000` | prazo do encerramento gracioso (1 000–120 000) |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | sim (compose) | — | container local |
 | `POSTGRES_PORT` / `REDIS_PORT` | não | `5432` / `6379` | portas no host |
 | `TEST_DATABASE_URL` / `TEST_REDIS_URL` | só testes | — | banco `*_test` e índice Redis 1 |
@@ -144,21 +151,21 @@ Também: extensões `pgcrypto` e `vector`, e `schema_migrations` (id + sha256) m
 
 ## 8–11. Testes, typecheck, build
 
-Executado a partir de estado limpo (`dist/` apagado), com containers de pé:
+Executado a partir de estado limpo (`dist/` apagado), com containers de pé. Números da revisão 2:
 
 | Comando | Resultado |
 |---|---|
 | `pnpm typecheck` | exit 0, sem erros |
 | `pnpm lint` | exit 0, sem avisos |
-| `pnpm test:unit` | **5 arquivos, 32 testes, todos passando** |
-| `pnpm test:integration` | **2 arquivos, 12 testes, todos passando** |
+| `pnpm test:unit` | **6 arquivos, 47 testes, todos passando** |
+| `pnpm test:integration` | **4 arquivos, 16 testes, todos passando** |
 | `pnpm build` | exit 0; 6 pacotes em ordem: governor, shared → database → events → worker, api |
 
-**Testes unitários (sem Docker):** configuração (4) · constituição (5) · Governor (13: cada uma das 7 capacidades proibidas, capacidade desconhecida, gasto zero, AUTO_SPEND, teto R$0, teto R$5 acumulado, valores inválidos, retries, concorrência) · arquivos de migration (4) · contrato do `/health` (3: 200, 503 sem vazar mensagem interna, timeout do Redis).
+**Testes unitários (sem Docker):** configuração (4) · constituição (5) · Governor (13: cada uma das 7 capacidades proibidas, capacidade desconhecida, gasto zero, AUTO_SPEND, teto R$0, teto R$5 acumulado, valores inválidos, retries, concorrência) · arquivos de migration (4) · contrato do `/health` (4 + 6 casos de `dependencyErrorCode`) · encerramento (8: ordem, idempotência, falha não pula etapas, prazo, SIGTERM/SIGINT saem com 0, saída 1 se não limpo, segundo sinal força saída).
 
-**Testes de integração (PostgreSQL + Redis reais):** 6 tabelas + pgvector · migrations reversíveis e reaplicáveis · seed com 4 agentes e idempotente · seed não sobrescreve estado · `events` recusa UPDATE/DELETE · ledger recusa receita sem comprovante e UPDATE · mock com custo recusado · `/health` 200 real · job API → fila → Worker → evento · Governor bloqueia TRADING no Worker · capacidade fora do catálogo → 400 · reprocessar o mesmo job não duplica evento.
+**Testes de integração (PostgreSQL + Redis reais):** 6 tabelas + pgvector · migrations reversíveis e reaplicáveis · seed com 4 agentes e idempotente · seed não sobrescreve estado · `events` recusa UPDATE/DELETE · ledger recusa receita sem comprovante e UPDATE · mock com custo recusado · `/health` 200 real · job API → fila → Worker → evento · Governor bloqueia TRADING no Worker · capacidade fora do catálogo → 400 · reprocessar o mesmo job não duplica evento · `/health` com pg e ioredis reais inalcançáveis → `ECONNREFUSED` / `UNAVAILABLE` · Worker encerra esperando o job em andamento (evento gravado, Redis e pool fechados) · encerramento estoura o prazo com job lento · API encerra HTTP, fila, Redis e pool.
 
-**Prova de que os testes mordem:** desativei de propósito a checagem de proibição no Governor. Resultado: 8 unitários e 1 de integração falharam (`Tempo esgotado esperando ACTION_BLOCKED`). Código restaurado com `git checkout`.
+**Prova de que os testes mordem:** desativei de propósito a checagem de proibição no Governor. Resultado: 8 unitários e 1 de integração falharam (`Tempo esgotado esperando ACTION_BLOCKED`). Código restaurado com `git checkout`. Na revisão 2, fechar o Worker à força (`worker.close(true)`) fez os 2 testes de encerramento do Worker falharem; restaurado.
 
 ## 12. `/health`
 
@@ -178,6 +185,17 @@ HTTP 503
 {"status":"degraded","api":"up","database":{"status":"connected","latencyMs":16},
  "redis":{"status":"disconnected","latencyMs":0,"error":"Error"},...}
 ```
+
+↑ Resposta da revisão 1. **Corrigido na revisão 2:** o campo `error` agora é um código estável. Com clientes `pg` e `ioredis` reais apontados para uma porta fechada:
+
+```
+HTTP 503
+{"status":"degraded","api":"up",
+ "database":{"status":"disconnected","latencyMs":12,"error":"ECONNREFUSED"},
+ "redis":{"status":"disconnected","latencyMs":1,"error":"UNAVAILABLE"},"aiMode":"mock",...}
+```
+
+Regra (`dependencyErrorCode`): `TIMEOUT` quando estoura o prazo de 2 s; o código do sistema ou do driver quando existe e tem formato `[A-Z0-9_]+` (`ECONNREFUSED`, `28P01`…); senão `UNAVAILABLE`. A mensagem do erro nunca vai na resposta, só no log.
 
 Após `docker compose start redis`: voltou a **HTTP 200** sozinho, sem reiniciar a API.
 
@@ -250,13 +268,51 @@ Política do pnpm 11 registrada em `pnpm-workspace.yaml`: `esbuild` pode rodar s
 ## 17. Pendências conhecidas
 
 1. **Evento sem job se o Redis cair entre persistir e enfileirar.** O `EventBus` grava primeiro e enfileira depois; nessa janela o erro sobe para a API (500) e o evento `TEST_JOB_REQUESTED` fica sem job. Correção natural é um outbox reconciliado pelo Orquestrador (M2/M6).
-2. **`/health` com Redis fora mostra `"error":"Error"`.** O ioredis não entrega código nesse caso. É proposital não expor a mensagem; o log tem o erro real. Dá para mapear para algo como `UNAVAILABLE`.
-3. **Encerramento gracioso (SIGINT/SIGTERM) não foi exercitado.** No Windows os processos foram encerrados à força; o código de `worker.close()` → `quit()` → `pool.end()` existe mas não tem prova.
+2. ~~`/health` com Redis fora mostra `"error":"Error"`~~ → **resolvida**, ver §17a.
+3. ~~Encerramento gracioso não exercitado~~ → **resolvida**, ver §17a. Resíduo: no Windows o sinal enviado por outro processo não chega ao handler (limitação do SO).
 4. **Sem CI.** O gate hoje é o hook local. A diretriz prevê `.github/workflows/ci.yml` quando houver remoto.
 5. **Sem remoto no GitHub** e nada integrado em `staging`/`main` — decisão do dono.
 6. **`.env` criado em disco** (fora do Git, confirmado por `git check-ignore`) com a senha placeholder `troque-esta-senha-local`. É a credencial do container local em uso; trocar é decisão do dono (exige recriar o volume).
 7. **Containers deixados de pé** (~35 MB somados) para a revisão. `pnpm services:down` os derruba.
 8. Transições de estado de `opportunities`/`tasks` existem só como CHECK de valores válidos; a máquina de transições (§11) é do Orquestrador (M2).
+
+## 17a. Pendências resolvidas na revisão 2
+
+### Pendência 3 — `/health` com `"error":"Error"`
+
+- **Causa:** o ioredis com `enableOfflineQueue: false` lança um `Error` sem `code` quando o Redis não está pronto; a API devolvia `code ?? name`, ou seja, `"Error"`.
+- **Correção:** `dependencyErrorCode` (`apps/api/src/routes/health.ts`) — códigos estáveis `TIMEOUT` / código do sistema ou driver / `UNAVAILABLE`.
+- **Prova:** 6 casos unitários + teste de integração com `pg` e `ioredis` reais contra porta fechada (§12).
+
+### Pendência 2 — encerramento gracioso sem prova
+
+- **Correção:** rotina única `createGracefulShutdown` + `exitOnShutdownSignals` (`packages/shared/src/shutdown.ts`), usada por `createWorkerShutdown` e `createApiShutdown`.
+  - Worker: `worker.close()` (para de pegar jobs e espera os ativos) → Redis `quit` → pool `end`.
+  - API: HTTP `close` (termina requisições em curso) → fila → Redis → pool.
+  - Falha numa etapa é logada e não pula as seguintes; prazo `SHUTDOWN_TIMEOUT_MS` (padrão 20 s) → saída 1; segundo sinal durante o encerramento → saída 1 imediata.
+  - Se o prazo estourar com job ativo, o processo sai e o BullMQ devolve o job como travado; o retry é seguro porque os eventos do job são idempotentes.
+- **Prova automatizada:** 8 testes unitários (sinais simulados com `EventEmitter`) + 3 de integração com BullMQ/Redis/PostgreSQL reais: um job de 1,5 s em andamento termina e grava `TEST_JOB_COMPLETED` antes de o Worker fechar; o prazo estoura com job de 3 s; a API fecha tudo.
+- **Prova com sinal real num container Linux** (`node:24-alpine`, na rede do Compose, código do commit `7b9eb59` via `git archive`), Worker compilado com um job de 4 s em andamento:
+
+  ```
+  +  829ms Worker pronto e consumindo a fila
+  +  997ms [prova] job de 4s enfileirado
+  + 1999ms [prova] enviando SIGTERM ao pid 173
+  + 2000ms encerrando
+  + 5016ms job de diagnóstico processado
+  + 5024ms encerrado outcome=clean durationMs=3024
+  + 5038ms [prova] processo saiu code=0 signal=null
+  [prova] eventos do job: TEST_JOB_REQUESTED, TEST_JOB_COMPLETED
+  ```
+
+  SIGINT: mesmo resultado (`encerrado outcome=clean durationMs=3021`, saída 0, job concluído).
+
+- **Windows (resíduo documentado):** `process.kill(pid, 'SIGTERM'|'SIGINT')` vindo de outro processo **encerra na hora** (saída em ~11 ms, `signal=SIGTERM`, sem o log `encerrando`). É o comportamento do Node no Windows, não do código. No Windows, o encerramento gracioso só acontece com Ctrl+C no próprio terminal. Em Linux/containers o caminho está provado acima.
+
+### Encontrado durante a prova
+
+- **`pnpm install` quebrava sem git** (container, CI mínimo): o `prepare` chamava `git config` direto. Agora `.githooks/install.mjs` ignora quando não há git ou repositório.
+- **Primeira prova Linux inválida, descartada:** um Worker que eu tinha subido antes em segundo plano (pid 22388) continuava consumindo a mesma fila e pegou os jobs primeiro, então o Worker da prova encerrou em 7 ms sem job ativo. Processo encerrado e prova refeita (resultado acima). Lição: prova de concorrência exige confirmar que não há outro consumidor na fila.
 
 ## 18. Decisões técnicas fora do documento
 
@@ -279,6 +335,9 @@ Política do pnpm 11 registrada em `pnpm-workspace.yaml`: `esbuild` pode rodar s
 17. **Especificação versionada** em `docs/especificacao-v1.docx` (45 KB, binário) para auditoria e continuidade (§22).
 18. **Tetos de memória nos containers** (PostgreSQL 384 MB com `shared_buffers=64MB`, Redis 128 MB `noeviction`), por causa da máquina de 8 GB.
 19. **Logger mascara** `DATABASE_URL`, `REDIS_URL` e chaves `password/token/apiKey/secret`.
+20. **`durationMs` no job de diagnóstico** (0–5 000 ms, opcional): simula um job demorado para provar o encerramento gracioso. Só existe no job de diagnóstico.
+21. **`SHUTDOWN_TIMEOUT_MS` = 20 s** por padrão. Quem gerencia o processo (Docker, systemd) precisa esperar mais que isso antes do SIGKILL — o `docker stop` padrão espera só 10 s.
+22. **`/health` expõe código, nunca mensagem** de erro das dependências.
 
 ## 19. Critérios de aceite (§18.1)
 
@@ -309,7 +368,7 @@ Seed        OK
 Queue       OK
 Event       persisted
 Governor    blocking prohibited action
-Tests       PASS  (32 unit + 12 integration)
+Tests       PASS  (47 unit + 16 integration)
 External paid services: R$0
 ```
 

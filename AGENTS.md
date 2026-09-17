@@ -32,11 +32,11 @@ Não altere a arquitetura em silêncio. Se uma decisão da especificação for i
 > Sobrescrever a cada sessão; o histórico é o `git log`.
 
 - **Última sessão:** 2026-09-17 · agente: claude · branch: `feat/m1-fundacao`
-- **Em andamento:** Milestone 1 implementado; aguardando revisão do dono
+- **Em andamento:** Milestone 1 implementado; pendências 2 e 3 do relatório corrigidas (revisão 2); aguardando revisão do dono
 - **Não commitado:** nada
 - **Bloqueado / a decidir:** merge `feat/m1-fundacao` → `staging` → `main` depende da revisão do dono; repositório só local (sem remoto)
 - **Próximo passo:** dono revisa o relatório em `docs/M1-FUNDACAO.md`. **Não iniciar o M2 sem autorização.**
-- **Para o outro agente saber:** testes de integração exigem `pnpm services:up`; a máquina de desenvolvimento tem 8 GB de RAM — não subir serviços além de PostgreSQL e Redis sem necessidade.
+- **Para o outro agente saber:** antes de provar algo com a fila, confirme que não há outro Worker consumindo; no Windows um SIGTERM vindo de outro processo mata na hora, então prove sinais em Linux; testes de integração exigem `pnpm services:up`; a máquina de desenvolvimento tem 8 GB de RAM — não subir serviços além de PostgreSQL e Redis sem necessidade.
 
 ## 5. Portões que não se pulam
 
