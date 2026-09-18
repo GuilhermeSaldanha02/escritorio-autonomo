@@ -17,6 +17,9 @@ importers:
       '@escritorio/budget':
         specifier: workspace:*
         version: link:packages/budget
+      '@escritorio/cacador':
+        specifier: workspace:*
+        version: link:packages/cacador
       '@escritorio/database':
         specifier: workspace:*
         version: link:infrastructure/database
@@ -183,6 +186,15 @@ importers:
       '@escritorio/governor':
         specifier: workspace:*
         version: link:../governor
+
+  packages/cacador:
+    dependencies:
+      '@escritorio/http-safe':
+        specifier: workspace:*
+        version: link:../http-safe
+      '@escritorio/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/events:
     dependencies:
