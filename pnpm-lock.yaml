@@ -14,6 +14,9 @@ importers:
       '@escritorio/api':
         specifier: workspace:*
         version: link:apps/api
+      '@escritorio/autonomy':
+        specifier: workspace:*
+        version: link:packages/autonomy
       '@escritorio/budget':
         specifier: workspace:*
         version: link:packages/budget
@@ -192,6 +195,18 @@ importers:
       '@escritorio/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/autonomy:
+    dependencies:
+      '@escritorio/database':
+        specifier: workspace:*
+        version: link:../../infrastructure/database
+      '@escritorio/events':
+        specifier: workspace:*
+        version: link:../events
+      '@escritorio/governor':
+        specifier: workspace:*
+        version: link:../governor
 
   packages/budget:
     dependencies:
