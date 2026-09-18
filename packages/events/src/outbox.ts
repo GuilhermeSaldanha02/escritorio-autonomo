@@ -21,6 +21,9 @@ export interface OutboxEntry {
 
 /** Grava o pedido de job. Mesmo `jobId` duas vezes é ignorado: nunca duplica. */
 export async function enqueueInOutbox(tx: Queryable, entry: OutboxEntry): Promise<void> {
+  // O BullMQ recusa ':' no id. Sem esta trava a linha entraria no outbox e morreria só no despacho,
+  // tentando para sempre. Falhar aqui, dentro da transação, é a falha barulhenta e cedo.
+  if (entry.jobId.includes(':')) throw new RangeError(`jobId "${entry.jobId}" contém ":", que o BullMQ não aceita`);
   await tx.query(
     `INSERT INTO outbox (event_id, queue, job_name, job_id, payload, job_attempts, available_at)
      VALUES ($1, $2, $3, $4, $5, $6, clock_timestamp() + make_interval(secs => $7::double precision / 1000))

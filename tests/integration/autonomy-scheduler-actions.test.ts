@@ -71,7 +71,7 @@ describe('agenda DISCOVERY', () => {
   it('o job enfileirado carrega o id da janela: a identidade agendada chega ao BullMQ', async () => {
     const result = await scheduler.runTick('DISCOVERY', T0);
     const { rows } = await pool.query<{ job_id: string }>('SELECT job_id FROM outbox');
-    expect(rows[0]!.job_id).toBe(`scheduled-${result.windowKey}`);
+    expect(rows[0]!.job_id).toBe(`scheduled-${result.windowKey.replaceAll(':', '-')}`);
   });
 });
 

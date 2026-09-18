@@ -121,7 +121,7 @@ describe('recovery de tasks paradas', () => {
     // Com o relógio à frente, só sobram elegíveis as que não são terminais, pausadas nem já enfileiradas.
     const report = await recovery.sweep(later());
     expect(report.tasksRedispatched).toBe(1);
-    const { rows } = await pool.query<{ payload: { taskId: string } }>(`SELECT payload FROM outbox WHERE job_id LIKE 'recovery:%'`);
+    const { rows } = await pool.query<{ payload: { taskId: string } }>(`SELECT payload FROM outbox WHERE job_id LIKE 'recovery-%'`);
     expect(rows.map((r) => r.payload.taskId)).toEqual([fresh]);
     expect([done, blocked, paused, queued]).not.toContain(fresh);
   });
@@ -248,5 +248,43 @@ describe('recovery de sandboxes órfãs', () => {
     } finally {
       await container.remove({ force: true }).catch(() => undefined);
     }
+  });
+});
+
+describe('recovery de trabalho pausado: a varredura se auto-cura', () => {
+  async function insertPaused(ageMinutes: number): Promise<string> {
+    const entityId = await insertTask('ASSIGNED');
+    await pool.query(
+      `INSERT INTO paused_work (job_name, entity_id, correlation_id, pause_reason, paused_at)
+       VALUES ($1, $2, $3, 'CIRCUIT_OPEN', now() - make_interval(mins => $4))`,
+      [JOB_NAMES.DEVELOP_TASK, entityId, crypto.randomUUID(), ageMinutes],
+    );
+    return entityId;
+  }
+
+  it('retoma a pausa VELHA (circuito que fechou, release interrompido) e deixa a recente em paz', async () => {
+    const old = await insertPaused(120);
+    const recent = await insertPaused(1);
+
+    const report = await recovery.sweep(new Date());
+    expect(report.pausedWorkResumed).toBe(1);
+    const { rows } = await pool.query<{ entity_id: string; resumed_at: Date | null }>('SELECT entity_id, resumed_at FROM paused_work');
+    const byEntity = new Map(rows.map((r) => [r.entity_id, r.resumed_at]));
+    expect(byEntity.get(old)).not.toBeNull();
+    expect(byEntity.get(recent)).toBeNull();
+    expect(await count(`outbox WHERE job_name = 'develop-task' AND payload->>'taskId' = $1`, [old])).toBe(1);
+
+    // Repetir a varredura não duplica.
+    expect((await recovery.sweep(new Date())).pausedWorkResumed).toBe(0);
+    expect(await count(`outbox WHERE job_name = 'develop-task'`)).toBe(1);
+  });
+
+  it('com o Emergency Stop engajado a varredura não retoma nada', async () => {
+    await insertPaused(120);
+    await stop.engage('FOUNDER_CLI', 'incidente');
+    const report = await recovery.sweep(new Date());
+    expect(report.pausedWorkResumed).toBe(0);
+    expect(report.skipped).toBe('EMERGENCY_STOP');
+    expect(await count('outbox')).toBe(0);
   });
 });

@@ -62,10 +62,13 @@ export interface ResumeResult {
  * ou em paralelo, nunca duplica o job. `SKIP LOCKED` faz dois retomadores
  * concorrentes dividirem as linhas em vez de brigar por elas.
  *
+ * `pausedBefore` limita a retomada às pausas mais antigas que isso (o recovery periódico usa o prazo de
+ * "sem sinal de vida"; o RELEASE do fundador e o wake de agente retomam tudo).
+ *
  * Só chame depois de o Emergency Stop estar liberado; o job re-passa pelo portão
  * e, se o circuito do escopo ainda estiver aberto, é pausado de novo.
  */
-export async function resumePausedWork(pool: Pool, attempts: number): Promise<ResumeResult> {
+export async function resumePausedWork(pool: Pool, attempts: number, pausedBefore?: Date): Promise<ResumeResult> {
   return withTransaction(pool, async (tx) => {
     const { rows } = await tx.query<{
       id: string;
@@ -75,7 +78,8 @@ export async function resumePausedWork(pool: Pool, attempts: number): Promise<Re
       paused_at: Date;
     }>(
       `SELECT id, job_name, entity_id, correlation_id, paused_at
-         FROM paused_work WHERE resumed_at IS NULL ORDER BY paused_at FOR UPDATE SKIP LOCKED`,
+         FROM paused_work WHERE resumed_at IS NULL AND ($1::timestamptz IS NULL OR paused_at < $1) ORDER BY paused_at FOR UPDATE SKIP LOCKED`,
+      [pausedBefore ?? null],
     );
 
     for (const row of rows) {

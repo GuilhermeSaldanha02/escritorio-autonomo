@@ -2,6 +2,7 @@ import { type Pool, withTransaction } from '@escritorio/database';
 import { EventBus, JOB_NAMES, QUEUE_NAMES } from '@escritorio/events';
 import type { Governor } from '@escritorio/governor';
 import type { AutonomyController } from './autonomy-controller.js';
+import { resumePausedWork } from './paused-work.js';
 
 /** Quem remove sandboxes órfãs. Injetado: o pacote de autonomia não conhece o Docker. */
 export interface SandboxReaper {
@@ -21,6 +22,8 @@ export interface RecoveryReport {
   tasksRedispatched: number;
   reservationsReleased: number;
   sandboxesRemoved: number;
+  /** Trabalho pausado há mais que o prazo que voltou à fila (circuito que já fechou, release interrompido). */
+  pausedWorkResumed: number;
   /** Presente quando a varredura nem começou: um portão de pausa a barrou (não é falha). */
   skipped?: string;
 }
@@ -52,17 +55,20 @@ export class RecoveryService {
     const { governor, controller, sandboxes } = this.deps;
 
     // Re-despachar trabalho é uma ação mutável: com o Stop engajado, a varredura espera.
-    // O trabalho pausado é retomado pelo RELEASE; o recovery cobre só o que ficou órfão.
+    // O RELEASE e o wake retomam o trabalho pausado; a varredura cobre o que ficou para trás (release
+    // interrompido, circuito que fechou): uma pausa velha volta à fila e passa pelo portão de novo, e o
+    // primeiro job depois do cooldown é a própria sonda HALF_OPEN.
     const decision = await controller.authorize({ origin: 'DIRECT' });
-    if (!decision.allowed) return { tasksRedispatched: 0, reservationsReleased: 0, sandboxesRemoved: 0, skipped: decision.gate };
+    if (!decision.allowed) return { tasksRedispatched: 0, reservationsReleased: 0, sandboxesRemoved: 0, pausedWorkResumed: 0, skipped: decision.gate };
 
     const staleMs = governor.autonomy.RESERVATION_STALE_AFTER_SECONDS * 1000;
     const cutoff = new Date(now.getTime() - staleMs);
 
+    const pausedWorkResumed = (await resumePausedWork(this.deps.pool, this.deps.attempts, cutoff)).resumed;
     const tasksRedispatched = await this.#redispatchStuckTasks(cutoff);
     const reservationsReleased = await this.#releaseOrphanReservations(cutoff);
     const sandboxesRemoved = sandboxes ? (await sandboxes.reap(staleMs, now)).length : 0;
-    return { tasksRedispatched, reservationsReleased, sandboxesRemoved };
+    return { tasksRedispatched, reservationsReleased, sandboxesRemoved, pausedWorkResumed };
   }
 
   /**
@@ -102,7 +108,7 @@ export class RecoveryService {
             correlationId,
             idempotencyKey: identity,
           },
-          { queue: QUEUE_NAMES.ORCHESTRATOR, jobName, data: () => ({ taskId: task.id, correlationId }), attempts, jobId: identity },
+          { queue: QUEUE_NAMES.ORCHESTRATOR, jobName, data: () => ({ taskId: task.id, correlationId }), attempts, jobId: identity.replaceAll(":", "-") },
         );
         if (result.created) redispatched += 1;
       }

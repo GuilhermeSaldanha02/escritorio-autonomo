@@ -31,7 +31,7 @@ export function createScheduleActions({ pool, governor, recovery, lifecycle }: S
           jobName: JOB_NAMES.DISCOVER_OPPORTUNITIES,
           data: () => ({ correlationId }),
           attempts,
-          jobId: `scheduled-${run.windowKey}`,
+          jobId: `scheduled-${run.windowKey.replaceAll(':', '-')}`,
         },
       );
     },
