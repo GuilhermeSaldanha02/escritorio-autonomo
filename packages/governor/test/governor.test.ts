@@ -107,3 +107,35 @@ describe('Governor — retries e concorrência', () => {
     });
   });
 });
+
+describe('Governor — transições de lifecycle (M6)', () => {
+  const STATUSES = ['PROBATION', 'ACTIVE', 'SLEEP', 'ARCHIVED', 'INEXISTENTE'];
+
+  it('autoriza exatamente as três transições automáticas do M6 e nenhuma outra', () => {
+    const allowed: string[] = [];
+    for (const from of STATUSES) {
+      for (const to of STATUSES) {
+        if (governor.evaluate({ kind: 'AGENT_LIFECYCLE_TRANSITION', from, to }).allowed) allowed.push(`${from}->${to}`);
+      }
+    }
+    expect(allowed.sort()).toEqual(['ACTIVE->SLEEP', 'PROBATION->ACTIVE', 'SLEEP->ACTIVE']);
+  });
+
+  it('nega ARCHIVED como origem e como destino, com a regra e a razão', () => {
+    for (const [from, to] of [
+      ['SLEEP', 'ARCHIVED'],
+      ['ACTIVE', 'ARCHIVED'],
+      ['ARCHIVED', 'ACTIVE'],
+    ] as const) {
+      expect(governor.evaluate({ kind: 'AGENT_LIFECYCLE_TRANSITION', from, to })).toMatchObject({
+        allowed: false,
+        rule: 'LIFECYCLE_TRANSITION_NOT_ALLOWED',
+      });
+    }
+  });
+
+  it('é determinístico: mesma transição, mesma decisão', () => {
+    const action = { kind: 'AGENT_LIFECYCLE_TRANSITION', from: 'ACTIVE', to: 'SLEEP' } as const;
+    expect(governor.evaluate(action)).toEqual(governor.evaluate(action));
+  });
+});

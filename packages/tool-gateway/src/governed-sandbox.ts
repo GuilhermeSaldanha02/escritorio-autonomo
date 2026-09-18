@@ -1,3 +1,4 @@
+import { WorkPausedError } from '@escritorio/autonomy';
 import type { SandboxRunRequest, SandboxRunResult } from '@escritorio/tools';
 import type { ToolGateway } from './gateway.js';
 
@@ -28,6 +29,8 @@ export class GovernedSandbox {
       tool: 'CODE_EXECUTION',
       payload,
     });
+    // Pausa nao e falha: quem captura (o worker) registra o trabalho pausado e nao consome tentativa.
+    if (outcome.status === 'PAUSED') throw new WorkPausedError(outcome.pauseGate ?? 'EMERGENCY_STOP', outcome.error ?? 'pausado');
     if (outcome.status !== 'SUCCESS' || !outcome.result) {
       throw new Error(`Tool Gateway não executou (${outcome.status}): ${outcome.error ?? 'sem detalhe'}`);
     }

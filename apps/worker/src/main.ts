@@ -8,10 +8,12 @@ import {
   createLogger,
   describeError,
   exitOnShutdownSignals,
+  type GracefulShutdown,
   loadConfig,
   loadEnvFile,
   withTimeout,
 } from '@escritorio/shared';
+import { startAutonomyRuntime } from './autonomy-runtime.js';
 import { createOrchestratorWorker } from './orchestrator/orchestrator-worker.js';
 import { createWorkerShutdown } from './shutdown.js';
 import { createSystemWorker } from './system-worker.js';
@@ -45,7 +47,8 @@ async function main(): Promise<void> {
     governor,
     logger,
   });
-  const sandboxManager = new SandboxManager(createDockerClient(), logger);
+  const docker = createDockerClient();
+  const sandboxManager = new SandboxManager(docker, logger);
   // M4: fonte real do Caçador (docs/M4-PLANO.md — GitHub, não Algora; ver
   // decisão estrutural intermediária). V1 roda sem token do GitHub.
   const connector = withSourcePolicy(
@@ -79,6 +82,9 @@ async function main(): Promise<void> {
   dispatcher.start();
   logger.info({ queues: [...queues.keys()] }, 'dispatcher do outbox iniciado');
 
+  // M6: Scheduler, recovery no boot e lifecycle. Desligado por padrão (AUTONOMY_ENABLED=false na Constituição).
+  const autonomy = startAutonomyRuntime({ pool, governor, docker, logger });
+
   const shutdown = createWorkerShutdown({
     dispatcher,
     workers: [worker, orchestratorWorker],
@@ -89,7 +95,12 @@ async function main(): Promise<void> {
     logger,
     timeoutMs: config.SHUTDOWN_TIMEOUT_MS,
   });
-  exitOnShutdownSignals(process, shutdown, (code) => process.exit(code), logger);
+  // O laço do Scheduler para primeiro: nenhum tick novo nasce enquanto o worker encerra.
+  const shutdownWithAutonomy: GracefulShutdown = (reason) => {
+    autonomy.stop();
+    return shutdown(reason);
+  };
+  exitOnShutdownSignals(process, shutdownWithAutonomy, (code) => process.exit(code), logger);
 }
 
 main().catch((error: unknown) => {

@@ -1,3 +1,4 @@
+import { type AutonomyController, isPause, type QuiescenceGuard } from '@escritorio/autonomy';
 import { releaseReservation, reserveBudget, settleReservation } from '@escritorio/budget';
 import type { Pool } from '@escritorio/database';
 import type { Governor, SpendPurpose } from '@escritorio/governor';
@@ -11,6 +12,10 @@ export interface ToolGatewayDeps {
   sandboxManager: SandboxManager;
   logger: Logger;
   budgetPurpose?: SpendPurpose;
+  /** M6: quando presente, Emergency Stop engajado pausa a execução (status PAUSED), sem falha e sem reserva. */
+  autonomy?: AutonomyController;
+  /** M6: prazo de quiescência depois do Emergency Stop; vencido, a sandbox em curso é encerrada de forma controlada. */
+  quiescence?: QuiescenceGuard;
 }
 
 const DEFAULT_PURPOSE: SpendPurpose = 'DEVELOPMENT_EXTERNAL_SERVICE';
@@ -31,6 +36,16 @@ export class ToolGateway {
     const { pool, governor, sandboxManager, logger } = this.deps;
     const purpose = this.deps.budgetPurpose ?? DEFAULT_PURPOSE;
     const idempotencyKey = `tool-call:${request.agentId}:${request.correlationId ?? request.taskId ?? crypto.randomUUID()}`;
+
+    // Pausa nunca vira falha: gravada como PAUSED (não BLOCKED), a Experience não a
+    // conta como falha e ela não alimenta o circuito do agente (critérios 12 e 18).
+    if (this.deps.autonomy) {
+      const gate = await this.deps.autonomy.authorize({ origin: 'DIRECT' });
+      if (!gate.allowed && isPause(gate)) {
+        const toolCallId = await this.#recordCall({ request, status: 'PAUSED', error: gate.reason });
+        return { status: 'PAUSED', toolCallId, error: gate.reason, pauseGate: gate.gate };
+      }
+    }
 
     const decision = governor.evaluate({ kind: 'TOOL_CALL', tool: request.tool });
     if (!decision.allowed) {
@@ -55,7 +70,17 @@ export class ToolGateway {
     }
 
     try {
-      const result = await sandboxManager.run(request.payload);
+      const guarded = this.deps.quiescence
+        ? await this.deps.quiescence.run((signal) => sandboxManager.run({ ...request.payload, signal }), { operation: 'SANDBOX_RUN', cancelable: true })
+        : undefined;
+      if (guarded?.status === 'EXCEEDED') {
+        // Passou da quiescência: o container foi encerrado. É uma PAUSA, não falha: sem custo, retomada no RELEASE.
+        if (reservation.reservationId) await releaseReservation(pool, reservation.reservationId);
+        const reason = 'Emergency Stop: a execução ultrapassou o prazo de quiescência e foi encerrada';
+        const toolCallId = await this.#recordCall({ request, status: 'PAUSED', error: reason, budgetReservationId: reservation.reservationId });
+        return { status: 'PAUSED', toolCallId, error: reason, pauseGate: 'EMERGENCY_STOP' };
+      }
+      const result = guarded ? guarded.value : await sandboxManager.run(request.payload);
       if (reservation.reservationId) await settleReservation(pool, reservation.reservationId, CODE_EXECUTION_COST_BRL);
       const toolCallId = await this.#recordCall({
         request,
@@ -92,7 +117,7 @@ export class ToolGateway {
 
   async #recordCall(params: {
     request: ToolCallRequest;
-    status: 'SUCCESS' | 'ERROR' | 'BLOCKED';
+    status: 'SUCCESS' | 'ERROR' | 'BLOCKED' | 'PAUSED';
     durationMs?: number;
     error?: string;
     budgetReservationId?: string;

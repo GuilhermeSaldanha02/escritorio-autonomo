@@ -7,6 +7,8 @@ import { z } from 'zod';
 /** packages/governor/{src,dist} → ../../../config/constitution.yaml */
 export const DEFAULT_CONSTITUTION_PATH = fileURLToPath(new URL('../../../config/constitution.yaml', import.meta.url));
 
+const positiveInt = z.number().int().min(1);
+
 /**
  * Proibições da V1 são `z.literal(false)`: um YAML com `true` é rejeitado na
  * carga. Relaxar uma delas é decisão de código revisado, não de configuração.
@@ -37,6 +39,34 @@ const constitutionSchema = z
       .object({
         MAX_TASK_RETRIES: z.number().int().min(0).max(10),
         MAX_PARALLEL_TASKS: z.number().int().min(1).max(16),
+      })
+      .strict(),
+    /**
+     * M6 (docs/M6-PLANO.md): defaults de engenharia da V1, conservadores e
+     * configuráveis. Não são aprendizado comprovado da empresa: só um humano,
+     * editando este arquivo, os altera. `AUTONOMY_ENABLED` é independente de
+     * `AUTO_SPEND` e nunca amplia nenhuma permissão acima.
+     */
+    autonomia: z
+      .object({
+        AUTONOMY_ENABLED: z.boolean(),
+        DISCOVERY_INTERVAL_SECONDS: positiveInt,
+        RECONCILIATION_INTERVAL_SECONDS: positiveInt,
+        PERFORMANCE_WINDOW_HOURS: positiveInt,
+        RECOVERY_SWEEP_INTERVAL_SECONDS: positiveInt,
+        LIFECYCLE_EVALUATION_INTERVAL_SECONDS: positiveInt,
+        SOURCE_CIRCUIT_FAILURE_THRESHOLD: positiveInt,
+        SOURCE_CIRCUIT_COOLDOWN_SECONDS: positiveInt,
+        AGENT_CIRCUIT_MIN_SAMPLE: positiveInt,
+        AGENT_CIRCUIT_CONSECUTIVE_FAILURES: positiveInt,
+        AGENT_CIRCUIT_COOLDOWN_SECONDS: positiveInt,
+        LIFECYCLE_MIN_SAMPLE: positiveInt,
+        LIFECYCLE_PROMOTE_CONSECUTIVE_WINDOWS: positiveInt,
+        LIFECYCLE_SLEEP_CONSECUTIVE_BAD_WINDOWS: positiveInt,
+        LIFECYCLE_TRANSITION_COOLDOWN_HOURS: positiveInt,
+        SLEEP_MIN_DURATION_HOURS: positiveInt,
+        EMERGENCY_QUIESCENCE_TIMEOUT_SECONDS: positiveInt,
+        RESERVATION_STALE_AFTER_SECONDS: positiveInt,
       })
       .strict(),
   })

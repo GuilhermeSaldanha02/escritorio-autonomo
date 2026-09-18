@@ -1,4 +1,5 @@
 import { reserveBudget, releaseReservation, settleReservation } from '@escritorio/budget';
+import { type AutonomyController, isPause, type QuiescenceGuard } from '@escritorio/autonomy';
 import type { Pool } from '@escritorio/database';
 import type { Governor, SpendPurpose } from '@escritorio/governor';
 import { describeError, type Logger } from '@escritorio/shared';
@@ -13,15 +14,21 @@ export interface AiGatewayDeps {
   /** Custo estimado da chamada, em BRL. Nenhum modo tem gasto real habilitado nesta fase do M3 — o padrão é sempre 0. */
   estimateCostBrl?: (request: AiCompletionRequest, mode: AiMode) => number;
   budgetPurpose?: SpendPurpose;
+  /** M6: quando presente, Emergency Stop engajado pausa a chamada (status PAUSED), sem falha e sem custo. */
+  autonomy?: AutonomyController;
+  /** M6: chamada de IA não é cancelável; passado o prazo depois do Stop, o resultado é descartado e nada progride. */
+  quiescence?: QuiescenceGuard;
 }
 
-export type AiCompletionStatus = 'SUCCESS' | 'ERROR' | 'BLOCKED';
+export type AiCompletionStatus = 'SUCCESS' | 'ERROR' | 'BLOCKED' | 'PAUSED';
 
 export interface AiCompletionOutcome {
   status: AiCompletionStatus;
   content?: string;
   modelCallId: string;
   error?: string;
+  /** Presente quando status === 'PAUSED': o portão de pausa que barrou a chamada. */
+  pauseGate?: string;
 }
 
 const DEFAULT_PURPOSE: SpendPurpose = 'DEVELOPMENT_EXTERNAL_SERVICE';
@@ -58,6 +65,23 @@ export class AiGateway {
     const existing = await this.#findByLogicalCallId(logicalCallId);
     if (existing) return existing;
 
+    // M6: uma pausa (Emergency Stop) nunca vira falha nem custo. A tentativa é auditada
+    // com um id lógico PRÓPRIO: com o da operação, a reexecução depois do RELEASE
+    // encontraria a linha PAUSED em `findByLogicalCallId` e a chamada nunca aconteceria.
+    if (this.deps.autonomy) {
+      const gate = await this.deps.autonomy.authorize({ origin: 'DIRECT' });
+      if (!gate.allowed && isPause(gate)) {
+        const paused = await this.#recordCall({
+          request,
+          mode,
+          status: 'PAUSED',
+          error: gate.reason,
+          logicalCallId: `${logicalCallId}:paused:${crypto.randomUUID()}`,
+        });
+        return { ...paused, pauseGate: gate.gate };
+      }
+    }
+
     const reservation = await reserveBudget(pool, governor, {
       purpose,
       amountBrl: estimate,
@@ -78,7 +102,22 @@ export class AiGateway {
 
     const adapter = router.resolve();
     try {
-      const result = await adapter.complete(request);
+      const guarded = this.deps.quiescence
+        ? await this.deps.quiescence.run(() => adapter.complete(request), { operation: 'AI_COMPLETION', cancelable: false })
+        : undefined;
+      if (guarded?.status === 'EXCEEDED') {
+        if (reservation.reservationId) await releaseReservation(pool, reservation.reservationId);
+        const reason = 'Emergency Stop: a chamada de IA ultrapassou o prazo de quiescência e o resultado foi descartado';
+        const paused = await this.#recordCall({
+          request,
+          mode,
+          status: 'PAUSED',
+          error: reason,
+          logicalCallId: `${logicalCallId}:paused:${crypto.randomUUID()}`,
+        });
+        return { ...paused, pauseGate: 'EMERGENCY_STOP' };
+      }
+      const result = guarded ? guarded.value : await adapter.complete(request);
       if (reservation.reservationId) await settleReservation(pool, reservation.reservationId, estimate);
       return this.#recordCall({
         request,

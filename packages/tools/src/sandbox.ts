@@ -44,6 +44,8 @@ export interface SandboxRunRequest {
   /** Arquivos texto a gravar em /workspace antes do comando (caminho relativo → conteúdo). */
   files?: Readonly<Record<string, string>>;
   limits?: Partial<SandboxLimits>;
+  /** Encerramento controlado pedido de fora (Emergency Stop): o container é morto e removido, sem falha. */
+  signal?: AbortSignal;
 }
 
 export interface SandboxRunResult {
@@ -52,6 +54,8 @@ export interface SandboxRunResult {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  /** `true` quando o `signal` da requisição interrompeu a execução. */
+  aborted?: boolean;
   oomKilled: boolean;
   durationMs: number;
 }
@@ -154,7 +158,7 @@ export class SandboxManager {
 
     try {
       await container.start();
-      const { timedOut } = await this.waitWithTimeout(container, limits.timeoutMs);
+      const { timedOut, aborted } = await this.waitWithTimeout(container, limits.timeoutMs, request.signal);
       const { stdout, stderr } = await this.readLogs(container);
       const info = await container.inspect();
       return {
@@ -163,6 +167,7 @@ export class SandboxManager {
         stdout,
         stderr,
         timedOut,
+        aborted,
         oomKilled: info.State.OOMKilled,
         durationMs: Date.now() - startedAt,
       };
@@ -240,15 +245,27 @@ export class SandboxManager {
     });
   }
 
-  private async waitWithTimeout(container: Container, timeoutMs: number): Promise<{ timedOut: boolean }> {
+  private async waitWithTimeout(container: Container, timeoutMs: number, signal?: AbortSignal): Promise<{ timedOut: boolean; aborted: boolean }> {
+    let onAbort: (() => void) | undefined;
+    const aborted = new Promise<'ABORTED'>((resolve) => {
+      if (!signal) return;
+      onAbort = () => resolve('ABORTED');
+      if (signal.aborted) onAbort();
+      else signal.addEventListener('abort', onAbort, { once: true });
+    });
     try {
-      await withTimeout(container.wait(), timeoutMs, 'execução no sandbox');
-      return { timedOut: false };
+      const outcome = await Promise.race([withTimeout(container.wait(), timeoutMs, 'execução no sandbox').then(() => 'DONE' as const), aborted]);
+      if (outcome === 'DONE') return { timedOut: false, aborted: false };
+      await container.kill().catch(() => undefined); // encerramento controlado: pode já ter morrido sozinho
+      await container.wait().catch(() => undefined);
+      return { timedOut: false, aborted: true };
     } catch (error) {
       if (!(error instanceof TimeoutError)) throw error;
       await container.kill().catch(() => undefined); // pode já ter morrido sozinho entre o timeout e aqui
       await container.wait().catch(() => undefined); // espera o estado final assentar antes do inspect
-      return { timedOut: true };
+      return { timedOut: true, aborted: false };
+    } finally {
+      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
     }
   }
 

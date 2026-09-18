@@ -14,12 +14,18 @@ importers:
       '@escritorio/api':
         specifier: workspace:*
         version: link:apps/api
+      '@escritorio/autonomy':
+        specifier: workspace:*
+        version: link:packages/autonomy
       '@escritorio/budget':
         specifier: workspace:*
         version: link:packages/budget
       '@escritorio/cacador':
         specifier: workspace:*
         version: link:packages/cacador
+      '@escritorio/cli':
+        specifier: workspace:*
+        version: link:apps/cli
       '@escritorio/database':
         specifier: workspace:*
         version: link:infrastructure/database
@@ -80,6 +86,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@escritorio/autonomy':
+        specifier: workspace:*
+        version: link:../../packages/autonomy
       '@escritorio/database':
         specifier: workspace:*
         version: link:../../infrastructure/database
@@ -105,6 +114,21 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  apps/cli:
+    dependencies:
+      '@escritorio/autonomy':
+        specifier: workspace:*
+        version: link:../../packages/autonomy
+      '@escritorio/database':
+        specifier: workspace:*
+        version: link:../../infrastructure/database
+      '@escritorio/governor':
+        specifier: workspace:*
+        version: link:../../packages/governor
+      '@escritorio/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
   apps/worker:
     dependencies:
       '@escritorio/agents':
@@ -113,6 +137,9 @@ importers:
       '@escritorio/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@escritorio/autonomy':
+        specifier: workspace:*
+        version: link:../../packages/autonomy
       '@escritorio/cacador':
         specifier: workspace:*
         version: link:../../packages/cacador
@@ -122,6 +149,9 @@ importers:
       '@escritorio/events':
         specifier: workspace:*
         version: link:../../packages/events
+      '@escritorio/finance':
+        specifier: workspace:*
+        version: link:../../packages/finance
       '@escritorio/governor':
         specifier: workspace:*
         version: link:../../packages/governor
@@ -180,6 +210,9 @@ importers:
 
   packages/ai:
     dependencies:
+      '@escritorio/autonomy':
+        specifier: workspace:*
+        version: link:../autonomy
       '@escritorio/budget':
         specifier: workspace:*
         version: link:../budget
@@ -192,6 +225,18 @@ importers:
       '@escritorio/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/autonomy:
+    dependencies:
+      '@escritorio/database':
+        specifier: workspace:*
+        version: link:../../infrastructure/database
+      '@escritorio/events':
+        specifier: workspace:*
+        version: link:../events
+      '@escritorio/governor':
+        specifier: workspace:*
+        version: link:../governor
 
   packages/budget:
     dependencies:
@@ -269,6 +314,9 @@ importers:
 
   packages/tool-gateway:
     dependencies:
+      '@escritorio/autonomy':
+        specifier: workspace:*
+        version: link:../autonomy
       '@escritorio/budget':
         specifier: workspace:*
         version: link:../budget

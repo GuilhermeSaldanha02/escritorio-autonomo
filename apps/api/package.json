@@ -16,6 +16,7 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@escritorio/autonomy": "workspace:*",
     "@escritorio/database": "workspace:*",
     "@escritorio/events": "workspace:*",
     "@escritorio/governor": "workspace:*",

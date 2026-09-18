@@ -1,4 +1,5 @@
 import type { Job } from 'bullmq';
+import type { CircuitBreakerStore } from '@escritorio/autonomy';
 import type { SourceConnector } from '@escritorio/cacador';
 import { runDiscoveryCycle } from '@escritorio/cacador';
 import type { Pool } from '@escritorio/database';
@@ -12,6 +13,8 @@ export interface DiscoveryHandlerDeps {
   governor: Governor;
   connector: SourceConnector;
   logger: Logger;
+  /** M6: o resultado técnico da fonte alimenta o circuito dela. Ausente, nada é alimentado. */
+  breakers?: CircuitBreakerStore;
 }
 
 /**
@@ -30,10 +33,21 @@ export interface DiscoveryHandlerDeps {
  * num ciclo seguinte (ex.: uma revisão que ainda promove) nunca duplica o
  * evento nem o job `decide-opportunity`.
  */
-export function createDiscoveryHandler({ pool, bus, governor, connector, logger }: DiscoveryHandlerDeps) {
+export function createDiscoveryHandler({ pool, bus, governor, connector, logger, breakers }: DiscoveryHandlerDeps) {
   return async function handleDiscoverOpportunities(job: Job<DiscoverOpportunitiesJobData>): Promise<void> {
     const { correlationId } = job.data;
     const result = await runDiscoveryCycle({ pool, connector });
+
+    // O circuito da fonte é alimentado só por resultado TÉCNICO dela (indisponível, rate limit
+    // esgotado, mudança de schema, payload grande demais), nunca por pausa ou espera.
+    if (breakers) {
+      await breakers.recordOutcome(
+        { type: 'SOURCE', key: connector.source },
+        result.sourceStatus === 'OK' ? 'SUCCESS' : 'FAILURE',
+        new Date(),
+        result.sourceStatus === 'OK' ? undefined : result.sourceStatus,
+      );
+    }
 
     if (result.sourceStatus !== 'OK') {
       logger.warn(
