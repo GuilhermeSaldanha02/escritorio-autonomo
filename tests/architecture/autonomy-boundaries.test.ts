@@ -69,6 +69,7 @@ describe('fronteiras estruturais do M6', () => {
       'packages/autonomy/src/job-gate.ts',
       'packages/autonomy/src/scheduler.ts',
       'packages/autonomy/src/autonomy-controller.ts',
+      'packages/autonomy/src/recovery.ts',
       'packages/autonomy/src/lifecycle-service.ts',
       'packages/tool-gateway/src/gateway.ts',
       'packages/ai/src/gateway.ts',
