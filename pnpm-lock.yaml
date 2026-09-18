@@ -26,6 +26,9 @@ importers:
       '@escritorio/governor':
         specifier: workspace:*
         version: link:packages/governor
+      '@escritorio/http-safe':
+        specifier: workspace:*
+        version: link:packages/http-safe
       '@escritorio/shared':
         specifier: workspace:*
         version: link:packages/shared
@@ -210,6 +213,8 @@ importers:
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+
+  packages/http-safe: {}
 
   packages/shared:
     dependencies:
