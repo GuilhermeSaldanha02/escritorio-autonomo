@@ -21,6 +21,7 @@ describe('arquivos de migration', () => {
       '0003_orquestrador',
       '0004_occurred_at_clock_real',
       '0005_budget',
+      '0006_model_calls_audit',
     ]);
   });
 

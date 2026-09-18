@@ -32,6 +32,9 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0006_model_calls_audit']);
+    expect(await publicTables()).toContain('model_calls'); // 0006 só adiciona colunas, não uma tabela
+
     expect(await migrateDown(pool, 1)).toEqual(['0005_budget']);
     expect(await publicTables()).not.toContain('budget_reservations');
 
@@ -53,10 +56,18 @@ describe('migrations', () => {
       '0003_orquestrador',
       '0004_occurred_at_clock_real',
       '0005_budget',
+      '0006_model_calls_audit',
     ]);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
-      applied: ['0001_nucleo', '0002_outbox', '0003_orquestrador', '0004_occurred_at_clock_real', '0005_budget'],
+      applied: [
+        '0001_nucleo',
+        '0002_outbox',
+        '0003_orquestrador',
+        '0004_occurred_at_clock_real',
+        '0005_budget',
+        '0006_model_calls_audit',
+      ],
       pending: [],
     });
   });

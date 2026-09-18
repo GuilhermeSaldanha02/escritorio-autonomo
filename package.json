@@ -28,6 +28,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "devDependencies": {
+    "@escritorio/ai": "workspace:*",
     "@escritorio/api": "workspace:*",
     "@escritorio/budget": "workspace:*",
     "@escritorio/database": "workspace:*",
