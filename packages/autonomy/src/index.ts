@@ -8,3 +8,4 @@ export * from './lifecycle-service.js';
 export * from './paused-work.js';
 export * from './recovery.js';
 export * from './scheduler.js';
+export * from './stop-recommendation.js';

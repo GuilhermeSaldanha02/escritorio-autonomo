@@ -48,6 +48,22 @@ describe('fronteiras estruturais do M6', () => {
     }
   });
 
+  it('só a CLI e a API do fundador chamam releaseAndResume (o RELEASE também é só humano)', () => {
+    const users = filesMatching(/releaseAndResume/).filter(
+      (path) => !['packages/autonomy/src/emergency-stop.ts', 'packages/autonomy/src/index.ts'].includes(path),
+    );
+    for (const path of users) {
+      expect(path.startsWith('apps/cli/') || path === 'apps/api/src/routes/emergency-stop.ts', `${path} não pode liberar o Stop`).toBe(true);
+    }
+    expect(users.length).toBeGreaterThan(0);
+  });
+
+  it('a recomendação de Stop só grava um evento: não toca emergency_stop_events nem o serviço', () => {
+    const file = SOURCES.find((f) => f.path === 'packages/autonomy/src/stop-recommendation.ts');
+    expect(file).toBeDefined();
+    expect(/emergency_stop_events|EmergencyStopService|\.engage\(|\.release\(/.test(file!.text)).toBe(false);
+  });
+
   it('nenhum componente automático chama engage ou release do Stop (só recomenda)', () => {
     const automatic = SOURCES.filter(
       (file) =>
