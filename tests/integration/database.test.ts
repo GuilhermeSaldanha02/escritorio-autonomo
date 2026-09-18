@@ -11,6 +11,7 @@ const TABLES = [
   'model_calls',
   'opportunities',
   'outbox',
+  'payment_evidence',
   'tasks',
   'tool_calls',
 ];
@@ -42,6 +43,10 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0010_financial_ledger_economy']);
+    expect(await publicTables()).not.toContain('payment_evidence');
+    expect(await publicTables()).toContain('financial_ledger'); // 0010 só retipa colunas, não a tabela
+
     expect(await migrateDown(pool, 1)).toEqual(['0009_opportunities_m4_identity']);
     expect(await publicTables()).toContain('opportunities'); // 0009 só adiciona colunas, não uma tabela
 
@@ -79,6 +84,7 @@ describe('migrations', () => {
       '0007_tool_calls',
       '0008_model_calls_idempotent',
       '0009_opportunities_m4_identity',
+      '0010_financial_ledger_economy',
     ]);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
@@ -92,6 +98,7 @@ describe('migrations', () => {
         '0007_tool_calls',
         '0008_model_calls_idempotent',
         '0009_opportunities_m4_identity',
+        '0010_financial_ledger_economy',
       ],
       pending: [],
     });
@@ -141,17 +148,17 @@ describe('regras de integridade no banco', () => {
   it('financial_ledger é append-only e não aceita receita sem comprovante', async () => {
     await expect(
       pool.query(
-        `INSERT INTO financial_ledger (entry_type, amount_brl, description, idempotency_key)
-         VALUES ('REVENUE', 1, 'receita inventada', 'teste-receita')`,
+        `INSERT INTO financial_ledger (entry_type, amount_cents, ledger_scope, description, idempotency_key)
+         VALUES ('REVENUE', 100, 'SIMULATION', 'receita inventada', 'teste-receita')`,
       ),
     ).rejects.toThrow(/financial_ledger_check/);
 
     const { rows } = await pool.query<{ id: string }>(
-      `INSERT INTO financial_ledger (entry_type, amount_brl, description, idempotency_key)
-       VALUES ('FOUNDER_SUBSIDY', 5, 'aporte experimental', 'teste-aporte') RETURNING id`,
+      `INSERT INTO financial_ledger (entry_type, amount_cents, ledger_scope, description, idempotency_key)
+       VALUES ('FOUNDER_SUBSIDY', 500, 'SIMULATION', 'aporte experimental', 'teste-aporte') RETURNING id`,
     );
     await expect(
-      pool.query('UPDATE financial_ledger SET amount_brl = 500 WHERE id = $1', [rows[0]?.id]),
+      pool.query('UPDATE financial_ledger SET amount_cents = 50000 WHERE id = $1', [rows[0]?.id]),
     ).rejects.toThrow(/append-only/);
   });
 

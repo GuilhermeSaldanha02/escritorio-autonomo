@@ -1,12 +1,17 @@
 -- 0010 — Ledger real e PaymentEvidence (M5, Memória + Economia).
 --
--- financial_ledger existe desde o M1 mas nenhum código nunca escreveu nela
--- (confirmado antes de tocar o schema). Por isso a migração retipa
+-- financial_ledger existe desde o M1 mas nenhum código nunca escreveu nela em
+-- produção (confirmado antes de tocar o schema). Por isso a migração retipa
 -- amount_brl (numeric(14,2), ponto flutuante decimal) para amount_cents
 -- (bigint, centavos inteiros) em vez de manter as duas representações lado a
 -- lado — decisão normativa do M5-PLANO.md ("dinheiro nunca em ponto
--- flutuante"), sem risco de regressão porque a tabela está vazia e nenhum
--- código depende do tipo antigo.
+-- flutuante").
+--
+-- O backfill (`UPDATE financial_ledger SET amount_cents = ...`) precisa
+-- desligar o trigger append-only antes de rodar: a tabela pode já ter linhas
+-- (testes de integridade inserem em financial_ledger), e o próprio trigger
+-- que a tabela carrega desde o M1 bloquearia o UPDATE da migração como
+-- bloquearia qualquer outro — a migração não é uma exceção implícita.
 --
 -- entry_type ganha os três buckets do split determinístico (ajuste 1 da
 -- revisão externa: RESERVE recebe sempre o resíduo do arredondamento) como
@@ -14,9 +19,13 @@
 -- enum-por-CHECK já usado em todo o schema.
 --
 -- ledger_scope (ajuste 2 da revisão externa) isola lançamentos SIMULATION de
--- REAL desde a origem: NOT NULL, sem DEFAULT, para forçar toda inserção a
+-- REAL desde a origem: NOT NULL, sem DEFAULT, para forçar toda inserção nova a
 -- declarar explicitamente o escopo — nunca um valor implícito que poderia
--- vazar dinheiro de teste para uma leitura de caixa real.
+-- vazar dinheiro de teste para uma leitura de caixa real. Linha que já
+-- existia antes desta coluna existir é sempre backfillada como SIMULATION,
+-- nunca REAL: nenhum lançamento anterior a este schema passou pelo caminho
+-- de pagamento real (que só nasce no M8), então a leitura conservadora é a
+-- única correta.
 ALTER TABLE financial_ledger
   DROP CONSTRAINT financial_ledger_amount_brl_check,
   DROP CONSTRAINT financial_ledger_entry_type_check,
@@ -26,7 +35,9 @@ ALTER TABLE financial_ledger
   ADD COLUMN amount_cents bigint,
   ADD COLUMN ledger_scope text;
 
-UPDATE financial_ledger SET amount_cents = ROUND(amount_brl * 100)::bigint;
+ALTER TABLE financial_ledger DISABLE TRIGGER financial_ledger_append_only;
+UPDATE financial_ledger SET amount_cents = ROUND(amount_brl * 100)::bigint, ledger_scope = 'SIMULATION';
+ALTER TABLE financial_ledger ENABLE TRIGGER financial_ledger_append_only;
 
 ALTER TABLE financial_ledger
   ALTER COLUMN amount_cents SET NOT NULL,
