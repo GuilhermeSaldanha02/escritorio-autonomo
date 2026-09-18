@@ -8,4 +8,5 @@ export * from './normalizer.js';
 export * from './promotion-policy.js';
 export * from './reward-status.js';
 export * from './source-connector.js';
+export * from './source-policy.js';
 export * from './verifier.js';
