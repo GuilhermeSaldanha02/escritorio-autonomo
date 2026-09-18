@@ -128,6 +128,9 @@ importers:
       '@escritorio/events':
         specifier: workspace:*
         version: link:../../packages/events
+      '@escritorio/finance':
+        specifier: workspace:*
+        version: link:../../packages/finance
       '@escritorio/governor':
         specifier: workspace:*
         version: link:../../packages/governor

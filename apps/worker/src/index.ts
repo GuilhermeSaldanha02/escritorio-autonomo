@@ -1,3 +1,4 @@
+export * from './autonomy-runtime.js';
 export * from './diagnostic-processor.js';
 export * from './orchestrator/agent-state.js';
 export * from './orchestrator/development-handler.js';
@@ -5,5 +6,6 @@ export * from './orchestrator/mappers.js';
 export * from './orchestrator/opportunity-handler.js';
 export * from './orchestrator/orchestrator-worker.js';
 export * from './orchestrator/review-handler.js';
+export * from './scheduler-actions.js';
 export * from './shutdown.js';
 export * from './system-worker.js';
