@@ -25,6 +25,7 @@ describe('arquivos de migration', () => {
       '0007_tool_calls',
       '0008_model_calls_idempotent',
       '0009_opportunities_m4_identity',
+      '0010_financial_ledger_economy',
     ]);
   });
 

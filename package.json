@@ -35,6 +35,7 @@
     "@escritorio/cacador": "workspace:*",
     "@escritorio/database": "workspace:*",
     "@escritorio/events": "workspace:*",
+    "@escritorio/finance": "workspace:*",
     "@escritorio/governor": "workspace:*",
     "@escritorio/http-safe": "workspace:*",
     "@escritorio/shared": "workspace:*",

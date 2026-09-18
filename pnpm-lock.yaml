@@ -26,6 +26,9 @@ importers:
       '@escritorio/events':
         specifier: workspace:*
         version: link:packages/events
+      '@escritorio/finance':
+        specifier: workspace:*
+        version: link:packages/finance
       '@escritorio/governor':
         specifier: workspace:*
         version: link:packages/governor
@@ -225,6 +228,8 @@ importers:
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+
+  packages/finance: {}
 
   packages/governor:
     dependencies:
