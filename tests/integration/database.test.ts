@@ -46,6 +46,12 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0012_memories_scope_trust']);
+    const { rows: memoryColumns } = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'memories' AND column_name IN ('trust_level', 'scope_task_id')`,
+    );
+    expect(memoryColumns).toHaveLength(0); // 0012 só adiciona colunas, não uma tabela
+
     expect(await migrateDown(pool, 1)).toEqual(['0011_memoria_performance']);
     expect(await publicTables()).not.toContain('experiences');
     expect(await publicTables()).not.toContain('memories');
@@ -94,6 +100,7 @@ describe('migrations', () => {
       '0009_opportunities_m4_identity',
       '0010_financial_ledger_economy',
       '0011_memoria_performance',
+      '0012_memories_scope_trust',
     ]);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
@@ -109,6 +116,7 @@ describe('migrations', () => {
         '0009_opportunities_m4_identity',
         '0010_financial_ledger_economy',
         '0011_memoria_performance',
+        '0012_memories_scope_trust',
       ],
       pending: [],
     });

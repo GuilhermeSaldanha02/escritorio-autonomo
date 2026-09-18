@@ -249,7 +249,11 @@ importers:
 
   packages/http-safe: {}
 
-  packages/memory: {}
+  packages/memory:
+    dependencies:
+      '@escritorio/database':
+        specifier: workspace:*
+        version: link:../../infrastructure/database
 
   packages/shared:
     dependencies:
