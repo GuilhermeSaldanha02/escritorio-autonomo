@@ -19,12 +19,14 @@ export interface ToolCallOutcome {
   status: ToolCallStatus;
   toolCallId: string;
   error?: string;
-  /** Presente só quando status === 'SUCCESS'. */
+  /** Presente só quando status === 'SUCCESS'. Mesma forma de SandboxRunResult — permite reconstruir um adapter compatível (ver governed-sandbox.ts). */
   result?: {
+    sandboxId: string;
     exitCode: number | null;
     stdout: string;
     stderr: string;
     timedOut: boolean;
     oomKilled: boolean;
+    durationMs: number;
   };
 }

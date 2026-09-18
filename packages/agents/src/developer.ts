@@ -37,7 +37,10 @@ export function runMockDeveloperTask(task: DeveloperTask): ImplementationReady {
  * até o Revisor para reconstrução em sandbox independente (critério 5).
  */
 export async function runDeveloperTaskInSandbox(
-  sandboxManager: SandboxManager,
+  // `Pick<..., 'run'>`, não a classe inteira: aceita qualquer executor com a
+  // mesma forma (ex.: GovernedSandbox do Tool Gateway, M3) — SandboxManager
+  // tem campos privados, então só a classe exata satisfaria o tipo completo.
+  sandboxManager: Pick<SandboxManager, 'run'>,
   task: DeveloperTask,
 ): Promise<ImplementationReady & { sandboxId: string }> {
   const files = buildMockSolutionFiles(task);

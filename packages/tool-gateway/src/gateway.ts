@@ -67,11 +67,13 @@ export class ToolGateway {
         status: 'SUCCESS',
         toolCallId,
         result: {
+          sandboxId: result.sandboxId,
           exitCode: result.exitCode,
           stdout: result.stdout,
           stderr: result.stderr,
           timedOut: result.timedOut,
           oomKilled: result.oomKilled,
+          durationMs: result.durationMs,
         },
       };
     } catch (error) {

@@ -9,7 +9,7 @@ import {
   transitionTask,
 } from '@escritorio/events';
 import type { Governor } from '@escritorio/governor';
-import type { SandboxManager } from '@escritorio/tools';
+import { GovernedSandbox, type ToolGateway } from '@escritorio/tool-gateway';
 import type { Logger } from '@escritorio/shared';
 import { recordAgentStateChange } from './agent-state.js';
 import { taskRowToContract, type TaskRow } from './mappers.js';
@@ -17,7 +17,7 @@ import { taskRowToContract, type TaskRow } from './mappers.js';
 export interface DevelopmentHandlerDeps {
   pool: Pool;
   governor: Governor;
-  sandboxManager: SandboxManager;
+  toolGateway: ToolGateway;
   logger: Logger;
   /** Atraso do reagendamento quando o Governor não tem slot (testável). Padrão: 2s. */
   waitSlotDelayMs?: number;
@@ -50,7 +50,7 @@ const DEFAULT_WAIT_SLOT_DELAY_MS = 2_000;
 export function createDevelopmentHandler({
   pool,
   governor,
-  sandboxManager,
+  toolGateway,
   logger,
   waitSlotDelayMs = DEFAULT_WAIT_SLOT_DELAY_MS,
 }: DevelopmentHandlerDeps) {
@@ -112,8 +112,9 @@ export function createDevelopmentHandler({
     if (task.status !== 'IN_PROGRESS') return; // já avançou (reentrega tardia) ou está bloqueada/cancelada.
 
     await recordAgentStateChange(pool, 'DESENVOLVEDOR-001', 'CODING', correlationId, `task:${taskId}:agent-state:coding:${task.retry_count}`, { taskId });
+    const governedSandbox = new GovernedSandbox(toolGateway, 'DESENVOLVEDOR-001', { taskId, correlationId });
     const { sandboxId: developerSandboxId, ...implementation } = await runDeveloperTaskInSandbox(
-      sandboxManager,
+      governedSandbox,
       taskRowToContract(task),
     );
     await recordAgentStateChange(pool, 'DESENVOLVEDOR-001', implementation.build ? 'SUCCESS' : 'FAILED', correlationId, `task:${taskId}:agent-state:done:${task.retry_count}`, { taskId });

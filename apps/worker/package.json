@@ -21,6 +21,7 @@
     "@escritorio/events": "workspace:*",
     "@escritorio/governor": "workspace:*",
     "@escritorio/shared": "workspace:*",
+    "@escritorio/tool-gateway": "workspace:*",
     "@escritorio/tools": "workspace:*",
     "bullmq": "^6.3.6",
     "ioredis": "5.11.1",

@@ -110,6 +110,9 @@ importers:
       '@escritorio/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@escritorio/tool-gateway':
+        specifier: workspace:*
+        version: link:../../packages/tool-gateway
       '@escritorio/tools':
         specifier: workspace:*
         version: link:../../packages/tools
