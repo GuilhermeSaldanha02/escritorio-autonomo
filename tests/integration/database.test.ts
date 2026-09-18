@@ -3,7 +3,7 @@ import { INITIAL_AGENTS, migrateDown, migrateUp, migrationStatus, seedInitialAge
 import { EventStore } from '@escritorio/events';
 import { createTestPool, resetDatabase } from './support.js';
 
-const TABLES = ['agents', 'events', 'financial_ledger', 'model_calls', 'opportunities', 'outbox', 'tasks'];
+const TABLES = ['agents', 'budget_reservations', 'events', 'financial_ledger', 'model_calls', 'opportunities', 'outbox', 'tasks'];
 
 let pool: Pool;
 
@@ -32,6 +32,9 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0005_budget']);
+    expect(await publicTables()).not.toContain('budget_reservations');
+
     expect(await migrateDown(pool, 1)).toEqual(['0004_occurred_at_clock_real']);
     expect(await publicTables()).toContain('outbox'); // 0004 só muda um DEFAULT, não uma tabela
 
@@ -44,10 +47,16 @@ describe('migrations', () => {
     expect(await migrateDown(pool, 1)).toEqual(['0001_nucleo']);
     expect(await publicTables()).toEqual(['schema_migrations']);
 
-    expect(await migrateUp(pool)).toEqual(['0001_nucleo', '0002_outbox', '0003_orquestrador', '0004_occurred_at_clock_real']);
+    expect(await migrateUp(pool)).toEqual([
+      '0001_nucleo',
+      '0002_outbox',
+      '0003_orquestrador',
+      '0004_occurred_at_clock_real',
+      '0005_budget',
+    ]);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
-      applied: ['0001_nucleo', '0002_outbox', '0003_orquestrador', '0004_occurred_at_clock_real'],
+      applied: ['0001_nucleo', '0002_outbox', '0003_orquestrador', '0004_occurred_at_clock_real', '0005_budget'],
       pending: [],
     });
   });

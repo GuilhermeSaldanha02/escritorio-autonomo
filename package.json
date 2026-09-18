@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@escritorio/api": "workspace:*",
+    "@escritorio/budget": "workspace:*",
     "@escritorio/database": "workspace:*",
     "@escritorio/events": "workspace:*",
     "@escritorio/governor": "workspace:*",
