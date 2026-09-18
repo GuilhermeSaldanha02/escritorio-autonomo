@@ -2,5 +2,7 @@ export * from './deduplicator.js';
 export * from './fake-source-connector.js';
 export * from './hash.js';
 export * from './normalizer.js';
+export * from './promotion-policy.js';
 export * from './reward-status.js';
 export * from './source-connector.js';
+export * from './verifier.js';

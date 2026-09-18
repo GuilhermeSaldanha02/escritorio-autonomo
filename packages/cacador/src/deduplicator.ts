@@ -1,4 +1,5 @@
 import { type Pool, type Queryable, withTransaction } from '@escritorio/database';
+import type { AutomationPolicyStatus, EligibilityStatus } from './promotion-policy.js';
 import { toLegacyRewardVerified, type RewardStatus } from './reward-status.js';
 import type { TrustLevel } from './source-connector.js';
 
@@ -27,8 +28,8 @@ export interface DiscoveredOpportunityInput {
   rewardSource?: string;
   paymentMethod?: string;
   paymentConditions?: string;
-  eligibilityStatus?: 'ELIGIBLE' | 'INELIGIBLE' | 'UNKNOWN';
-  automationPolicyStatus?: 'ALLOWED' | 'DISALLOWED' | 'UNKNOWN';
+  eligibilityStatus?: EligibilityStatus;
+  automationPolicyStatus?: AutomationPolicyStatus;
   verifiedAt?: string;
   aiAllowed?: boolean;
   automationAllowed?: boolean;
