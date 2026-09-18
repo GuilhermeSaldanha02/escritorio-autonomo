@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildRevenuePosting, type PaymentEvidence } from '../src/revenue-posting.js';
+import { buildRevenuePosting, MIN_SPLITTABLE_CENTS, PaymentTooSmallError, type PaymentEvidence } from '../src/revenue-posting.js';
 
 function evidence(overrides: Partial<PaymentEvidence> = {}): PaymentEvidence {
   return {
@@ -51,5 +51,16 @@ describe('buildRevenuePosting', () => {
   it('propaga opportunityId e externalReference da evidência para todo lançamento', () => {
     const entries = buildRevenuePosting(evidence({ opportunityId: 'opp-42', externalReference: 'ext-42' }));
     expect(entries.every((e) => e.opportunityId === 'opp-42' && e.externalReference === 'ext-42')).toBe(true);
+  });
+
+  it('recusa pagamento abaixo do mínimo que deixa os três buckets positivos', () => {
+    expect(() => buildRevenuePosting(evidence({ amountCents: MIN_SPLITTABLE_CENTS - 1 }))).toThrow(PaymentTooSmallError);
+  });
+
+  it('no mínimo aceito, todo lançamento tem valor positivo e o split conserva o total', () => {
+    const entries = buildRevenuePosting(evidence({ amountCents: MIN_SPLITTABLE_CENTS }));
+    expect(entries.every((e) => e.amountCents > 0)).toBe(true);
+    const split = entries.filter((e) => e.entryType !== 'REVENUE').reduce((sum, e) => sum + e.amountCents, 0);
+    expect(split).toBe(MIN_SPLITTABLE_CENTS);
   });
 });

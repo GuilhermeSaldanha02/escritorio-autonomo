@@ -232,7 +232,11 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
-  packages/finance: {}
+  packages/finance:
+    dependencies:
+      '@escritorio/database':
+        specifier: workspace:*
+        version: link:../../infrastructure/database
 
   packages/governor:
     dependencies:

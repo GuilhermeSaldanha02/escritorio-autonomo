@@ -9,7 +9,13 @@ ALTER TABLE financial_ledger
 ALTER TABLE financial_ledger
   ADD COLUMN amount_brl numeric(14, 2);
 
+-- O schema antigo não conhece os buckets do split: os lançamentos *_ALLOCATION
+-- são derivados (repartem uma REVENUE que permanece) e não cabem no CHECK
+-- antigo de entry_type, então a reversão os descarta. É perda inerente a
+-- reverter esta migration, não a um lançamento primário.
 ALTER TABLE financial_ledger DISABLE TRIGGER financial_ledger_append_only;
+DELETE FROM financial_ledger
+ WHERE entry_type IN ('RESERVE_ALLOCATION', 'OPERATIONS_ALLOCATION', 'EXPANSION_ALLOCATION');
 UPDATE financial_ledger SET amount_brl = (amount_cents::numeric / 100);
 ALTER TABLE financial_ledger ENABLE TRIGGER financial_ledger_append_only;
 

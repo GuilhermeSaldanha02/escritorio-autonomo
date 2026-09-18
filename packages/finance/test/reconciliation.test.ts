@@ -97,8 +97,8 @@ describe('reconcile', () => {
         entryType: 'FOUNDER_SUBSIDY' as const,
         amountCents: 500,
         ledgerScope: 'SIMULATION' as const,
-        opportunityId: null as unknown as string,
-        externalReference: null as unknown as string,
+        opportunityId: null,
+        externalReference: null,
         idempotencyKey: 'subsidy:1',
       },
     ];

@@ -29,9 +29,24 @@ export interface LedgerEntry {
   entryType: LedgerEntryType;
   amountCents: number;
   ledgerScope: LedgerScope;
-  opportunityId: string;
-  externalReference: string;
+  opportunityId: string | null;
+  externalReference: string | null;
   idempotencyKey: string;
+}
+
+/**
+ * Menor pagamento cujo split 50/30/20 deixa os três buckets com pelo menos 1
+ * centavo (com 4 centavos, EXPANSION vira 0 — e o ledger recusa lançamento de
+ * valor zero, `amount_cents > 0`). Recusar aqui é explícito; pular o bucket em
+ * silêncio faria a reconciliação acusar SPLIT_MISSING num pagamento legítimo.
+ */
+export const MIN_SPLITTABLE_CENTS = 5;
+
+export class PaymentTooSmallError extends Error {
+  constructor(readonly amountCents: number) {
+    super(`Pagamento de ${amountCents} centavos não permite split com os três buckets positivos (mínimo ${MIN_SPLITTABLE_CENTS})`);
+    this.name = 'PaymentTooSmallError';
+  }
 }
 
 /**
@@ -55,6 +70,7 @@ function scopeForProvenance(provenance: PaymentProvenance): LedgerScope {
  * sem depender de lógica adicional aqui.
  */
 export function buildRevenuePosting(evidence: PaymentEvidence): LedgerEntry[] {
+  if (evidence.amountCents < MIN_SPLITTABLE_CENTS) throw new PaymentTooSmallError(evidence.amountCents);
   const ledgerScope = scopeForProvenance(evidence.provenance);
   const split = computeSplit(evidence.amountCents);
 
