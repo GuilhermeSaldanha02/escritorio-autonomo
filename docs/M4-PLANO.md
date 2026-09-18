@@ -177,6 +177,21 @@ Regra: respeitar o limite documentado pela fonte; um `429` com `Retry-After` tem
 - Segunda fonte real (BountyHub) — candidato registrado, não faz parte do fechamento do M4.
 - Qualquer gasto real ou chamada de IA real — `AI_MODE` continua `mock`, custo externo continua R$0.
 
+## Decisão estrutural intermediária: schema de `opportunities` (consulta durante a implementação)
+
+Ao começar o Deduplicator/Verifier, ficou claro que `reward_verified` (boolean) e a tabela `opportunities` já são o contrato testado do M1-M3 (`decide()` do Diretor, `contracts.ts`, `mappers.ts` do Orquestrador, rota de simulação da API — 33+ testes de integração aprovados, incluindo crash recovery). Trocar `reward_verified` por `reward_status` in-place arriscaria regressão numa superfície grande para um benefício pequeno neste milestone. Voltei à revisão externa antes de tocar no schema, como combinado para decisão estrutural inesperada.
+
+**Decisão (revisão externa, 2026-09-18): Opção B — aditiva, sem migração destrutiva.**
+
+- `reward_status` é a verdade rica do M4 (`VERIFIED`/`PARTIALLY_VERIFIED`/`UNVERIFIED`/`CONFLICTING`); `reward_verified` permanece intacto como campo legado de compatibilidade — nunca ganha novas semânticas, nunca é escrito por um caminho que não seja explícito.
+- Derivação `reward_verified = (reward_status === 'VERIFIED')` centralizada numa única função (`toLegacyRewardVerified`, `packages/cacador/src/reward-status.ts`) usada apenas pela persistência do Caçador — nunca espalhada pelo código, nunca o inverso (ausência de `VERIFIED` não permite inferir `PARTIALLY_VERIFIED` vs. `UNVERIFIED` vs. `CONFLICTING`).
+- **Ajuste em relação à sugestão original de trigger de banco:** um trigger `BEFORE INSERT/UPDATE` que derivasse `reward_verified` de `reward_status` sobrescreveria também as inserções legadas — `apps/api/src/routes/simulations.ts` nunca menciona `reward_status`, então cairia sempre no `DEFAULT`/`NULL` e apagaria o `reward_verified` explícito do qual a simulação depende para produzir `EXECUTE` no Diretor mock. Verificado meio da implementação; a derivação ficou em código de aplicação (camada de persistência do M4), não em trigger de banco.
+- Backfill determinístico das linhas existentes (migração `0009_opportunities_m4_identity`): `reward_verified=true → reward_status='VERIFIED'`, `reward_verified=false → reward_status='UNVERIFIED'` — nunca inventa `PARTIALLY_VERIFIED`/`CONFLICTING` para dados que nunca tiveram essa evidência. Novas linhas de caminhos legados (que não mencionam `reward_status`) ficam com `reward_status = NULL` — não equivale a `UNVERIFIED`, é "não modelado pelo M4".
+- Identidade forte via índice único parcial `(source, external_id) WHERE external_id IS NOT NULL` — `canonical_url`/`target_identity`/`content_fingerprint` continuam sinais auxiliares, nunca identidade única.
+- Todas as colunas novas do M4 são nullable no banco (compatibilidade histórica); a obrigatoriedade real fica na validação do pipeline do Caçador, não no schema.
+- Prova de zero regressão: suíte de integração completa (71 testes) roda verde após a migração, incluindo o teste de reversibilidade de migrações atualizado para incluir `0009`.
+- Remoção futura de `reward_verified` fica registrada como migração de limpeza a fazer só quando contratos/consumidores legados forem conscientemente migrados — não faz parte do M4.
+
 ## Processo (mesmo que funcionou no M2 e no M3)
 
 Plano (este documento, já revisado e aprovado com os 4 ajustes) → autorização do dono para começar o código → implementação por passos com prova reexecutável → mutação confirmada nos pontos da lista acima → relatório de fechamento → revisão externa → autorização do dono antes do merge. A revisão externa já disse que não é necessária outra rodada de aprovação de design antes do primeiro commit — só volta a ela se aparecer alguma decisão estrutural inesperada durante a implementação.

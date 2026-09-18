@@ -42,6 +42,9 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0009_opportunities_m4_identity']);
+    expect(await publicTables()).toContain('opportunities'); // 0009 só adiciona colunas, não uma tabela
+
     expect(await migrateDown(pool, 1)).toEqual(['0008_model_calls_idempotent']);
     expect(await publicTables()).toContain('model_calls'); // 0008 só adiciona coluna, não uma tabela
 
@@ -75,6 +78,7 @@ describe('migrations', () => {
       '0006_model_calls_audit',
       '0007_tool_calls',
       '0008_model_calls_idempotent',
+      '0009_opportunities_m4_identity',
     ]);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
@@ -87,6 +91,7 @@ describe('migrations', () => {
         '0006_model_calls_audit',
         '0007_tool_calls',
         '0008_model_calls_idempotent',
+        '0009_opportunities_m4_identity',
       ],
       pending: [],
     });

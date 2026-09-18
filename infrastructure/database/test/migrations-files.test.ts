@@ -24,6 +24,7 @@ describe('arquivos de migration', () => {
       '0006_model_calls_audit',
       '0007_tool_calls',
       '0008_model_calls_idempotent',
+      '0009_opportunities_m4_identity',
     ]);
   });
 
