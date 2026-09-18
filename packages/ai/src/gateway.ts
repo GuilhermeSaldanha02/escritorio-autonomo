@@ -1,4 +1,5 @@
 import { reserveBudget, releaseReservation, settleReservation } from '@escritorio/budget';
+import { type AutonomyController, isPause } from '@escritorio/autonomy';
 import type { Pool } from '@escritorio/database';
 import type { Governor, SpendPurpose } from '@escritorio/governor';
 import { describeError, type Logger } from '@escritorio/shared';
@@ -13,15 +14,19 @@ export interface AiGatewayDeps {
   /** Custo estimado da chamada, em BRL. Nenhum modo tem gasto real habilitado nesta fase do M3 — o padrão é sempre 0. */
   estimateCostBrl?: (request: AiCompletionRequest, mode: AiMode) => number;
   budgetPurpose?: SpendPurpose;
+  /** M6: quando presente, Emergency Stop engajado pausa a chamada (status PAUSED), sem falha e sem custo. */
+  autonomy?: AutonomyController;
 }
 
-export type AiCompletionStatus = 'SUCCESS' | 'ERROR' | 'BLOCKED';
+export type AiCompletionStatus = 'SUCCESS' | 'ERROR' | 'BLOCKED' | 'PAUSED';
 
 export interface AiCompletionOutcome {
   status: AiCompletionStatus;
   content?: string;
   modelCallId: string;
   error?: string;
+  /** Presente quando status === 'PAUSED': o portão de pausa que barrou a chamada. */
+  pauseGate?: string;
 }
 
 const DEFAULT_PURPOSE: SpendPurpose = 'DEVELOPMENT_EXTERNAL_SERVICE';
@@ -57,6 +62,23 @@ export class AiGateway {
 
     const existing = await this.#findByLogicalCallId(logicalCallId);
     if (existing) return existing;
+
+    // M6: uma pausa (Emergency Stop) nunca vira falha nem custo. A tentativa é auditada
+    // com um id lógico PRÓPRIO: com o da operação, a reexecução depois do RELEASE
+    // encontraria a linha PAUSED em `findByLogicalCallId` e a chamada nunca aconteceria.
+    if (this.deps.autonomy) {
+      const gate = await this.deps.autonomy.authorize({ origin: 'DIRECT' });
+      if (!gate.allowed && isPause(gate)) {
+        const paused = await this.#recordCall({
+          request,
+          mode,
+          status: 'PAUSED',
+          error: gate.reason,
+          logicalCallId: `${logicalCallId}:paused:${crypto.randomUUID()}`,
+        });
+        return { ...paused, pauseGate: gate.gate };
+      }
+    }
 
     const reservation = await reserveBudget(pool, governor, {
       purpose,

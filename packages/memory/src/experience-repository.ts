@@ -85,8 +85,10 @@ export async function recordExperienceForTask(pool: Pool, taskId: string): Promi
   const failureCodes = new Set<string>();
   if (mapped.failureCode) failureCodes.add(mapped.failureCode);
   if (reviews.rows.some((event) => event.type === 'REVIEW_FAILED')) failureCodes.add('REVIEW_FAILED');
-  for (const call of modelCalls.rows) if (call.status !== 'SUCCESS') failureCodes.add(`MODEL_CALL_${call.status}`);
-  for (const call of toolCalls.rows) if (call.status !== 'SUCCESS') failureCodes.add(`TOOL_CALL_${call.status}`);
+  // Só ERROR e BLOCKED são falha. PAUSED (Emergency Stop, circuito) é pausa: contá-la aqui
+  // alimentaria o circuito do agente e fecharia o ciclo pausa -> falha -> SLEEP (critério 18).
+  for (const call of modelCalls.rows) if (call.status === 'ERROR' || call.status === 'BLOCKED') failureCodes.add(`MODEL_CALL_${call.status}`);
+  for (const call of toolCalls.rows) if (call.status === 'ERROR' || call.status === 'BLOCKED') failureCodes.add(`TOOL_CALL_${call.status}`);
 
   const technicalCostBrl = [...modelCalls.rows, ...toolCalls.rows].reduce((sum, call) => sum + Number(call.cost_brl), 0);
   const experience = buildExperience({

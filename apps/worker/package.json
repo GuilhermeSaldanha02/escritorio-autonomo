@@ -18,6 +18,7 @@
   "dependencies": {
     "@escritorio/agents": "workspace:*",
     "@escritorio/ai": "workspace:*",
+    "@escritorio/autonomy": "workspace:*",
     "@escritorio/cacador": "workspace:*",
     "@escritorio/database": "workspace:*",
     "@escritorio/events": "workspace:*",

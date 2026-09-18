@@ -116,6 +116,9 @@ importers:
       '@escritorio/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@escritorio/autonomy':
+        specifier: workspace:*
+        version: link:../../packages/autonomy
       '@escritorio/cacador':
         specifier: workspace:*
         version: link:../../packages/cacador
@@ -183,6 +186,9 @@ importers:
 
   packages/ai:
     dependencies:
+      '@escritorio/autonomy':
+        specifier: workspace:*
+        version: link:../autonomy
       '@escritorio/budget':
         specifier: workspace:*
         version: link:../budget
@@ -284,6 +290,9 @@ importers:
 
   packages/tool-gateway:
     dependencies:
+      '@escritorio/autonomy':
+        specifier: workspace:*
+        version: link:../autonomy
       '@escritorio/budget':
         specifier: workspace:*
         version: link:../budget

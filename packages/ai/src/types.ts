@@ -15,7 +15,7 @@ export interface AiCompletionRequest {
   maxTokens?: number;
 }
 
-export type AiCallStatus = 'SUCCESS' | 'ERROR' | 'BLOCKED';
+export type AiCallStatus = 'SUCCESS' | 'ERROR' | 'BLOCKED' | 'PAUSED';
 
 /** O que um adapter devolve — sem custo nem decisão de orçamento, que são responsabilidade do Gateway. */
 export interface AdapterResult {

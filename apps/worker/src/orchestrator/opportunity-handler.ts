@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq';
 import { authorizeExecution, decide } from '@escritorio/agents';
 import type { AiGateway } from '@escritorio/ai';
+import { WorkPausedError } from '@escritorio/autonomy';
 import { type Pool, withTransaction } from '@escritorio/database';
 import {
   type DecideOpportunityJobData,
@@ -164,11 +165,13 @@ export function createOpportunityHandler({ pool, governor, aiGateway, logger }: 
       // de verdade (AI_MODE=mock). Nota de auditoria só — não influencia a
       // decisão, que já foi tomada por `decide()`/`authorizeExecution()`
       // (critério 8: nenhum LLM participa da decisão final de autorização).
-      await aiGateway.complete({
+      const aiOutcome = await aiGateway.complete({
         agentId: 'DIRETOR-001',
         correlationId,
         prompt: `Resuma em uma frase por que a oportunidade "${opportunity.title}" foi aprovada (score ${decision.score}).`,
       });
+      // Emergency Stop engajado no meio do job: pausa, nunca segue e nunca falha.
+      if (aiOutcome.status === 'PAUSED') throw new WorkPausedError(aiOutcome.pauseGate ?? 'EMERGENCY_STOP', aiOutcome.error ?? 'pausado');
 
       await transitionOpportunity(pool, {
         id: opportunityId,

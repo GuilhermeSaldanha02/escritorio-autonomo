@@ -13,12 +13,14 @@ export interface ToolCallRequest {
   payload: SandboxRunRequest;
 }
 
-export type ToolCallStatus = 'SUCCESS' | 'ERROR' | 'BLOCKED';
+export type ToolCallStatus = 'SUCCESS' | 'ERROR' | 'BLOCKED' | 'PAUSED';
 
 export interface ToolCallOutcome {
   status: ToolCallStatus;
   toolCallId: string;
   error?: string;
+  /** Presente quando status === 'PAUSED': o portão de pausa que barrou a chamada. */
+  pauseGate?: string;
   /** Presente só quando status === 'SUCCESS'. Mesma forma de SandboxRunResult — permite reconstruir um adapter compatível (ver governed-sandbox.ts). */
   result?: {
     sandboxId: string;
