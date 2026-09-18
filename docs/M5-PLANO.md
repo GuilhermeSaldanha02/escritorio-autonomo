@@ -1,7 +1,8 @@
 # Milestone 5 — Memória + Economia · plano
 
 - **Consulta prévia (ChatGPT, 2026-09-18):** a especificação só tem uma linha de roadmap para o M5 ("pgvector, experiências, performance, ledger e reconciliação"), sem critérios de aceite detalhados. O escopo, a arquitetura e os 20 critérios abaixo vêm dessa consulta — feita depois de reabrir a especificação original e mapear o que M1-M4 já cobrem, exatamente como recomendado ao fechar o M4.
-- **Este plano ainda não foi implementado.** Próximo passo: revisão deste documento pela revisão externa, depois autorização explícita do dono para começar o código — mesmo processo do M2, M3 e M4.
+- **Segunda rodada (mesmo dia): plano aprovado, condicionado a 3 ajustes.** Depois de escrever a primeira versão deste documento, a revisão externa leu o arquivo completo e aprovou a direção, com 3 ajustes já incorporados abaixo: (1) política de arredondamento do split vira regra normativa, não exemplo; (2) `financial_ledger` ganha `ledger_scope` (`SIMULATION`/`REAL`) — dinheiro simulado nunca soma em caixa/receita real, nem hoje nem quando o M6 tomar decisões autônomas com base em saldo; (3) o `DeterministicEmbeddingProvider` prova infraestrutura vetorial, nunca qualidade semântica — o relatório de fechamento não pode alegar "memória semântica funcionando". Veredito literal: *"M5-PLANO — APROVADO COM 3 AJUSTES ANTES DO CÓDIGO [...] Com as três pequenas alterações [...] o plano fica APROVADO PARA IMPLEMENTAÇÃO."*
+- **Este plano ainda não foi implementado.** Próximo passo: autorização explícita do dono para começar o código — mesmo processo do M2, M3 e M4.
 
 ## Objetivo
 
@@ -52,6 +53,8 @@ Memory → embedding → pgvector → similarity search (top-K) → filtros de e
 - Cada memória guarda `embedding_provider`, `embedding_model`, `embedding_version`, `embedding_dimensions` — embeddings de proveniências diferentes nunca são tratados como se pertencessem ao mesmo espaço vetorial silenciosamente.
 - Recuperação filtrável por escopo (empresa/agente/task/capability) sem vazar conhecimento entre escopos indevidos.
 
+**Ajuste 3 da revisão externa — o que o M5 prova, sem exagerar:** um vetor determinístico (por hash/algoritmo artificial) prova armazenamento vetorial, compatibilidade dimensional, filtragem por escopo, cálculo de distância e recuperação top-K funcionando — **não prova qualidade de recuperação semântica**. O relatório de fechamento do M5 nunca pode dizer "memória semântica funcionando"; a frase correta é "infraestrutura de memória vetorial funcionando". Busca semanticamente útil só é verdade quando um `EmbeddingProvider` real (`Local`/`Api`) existir, fora do M5.
+
 ## Performance de agente: M5 calcula, M6 decide
 
 ```
@@ -76,7 +79,30 @@ Nunca misturar as três camadas. `balance` é sempre derivado (`SUM(credits) - S
 
 ### Dinheiro nunca em ponto flutuante
 
-Representação em centavos inteiros (`10101` para R$101,01), nunca `float`. Política de arredondamento explícita e determinística para o resíduo do split — por exemplo, resíduo sempre para `RESERVE`. Garantia obrigatória: `reserve + operations + expansion == revenue`, sempre, centavo a centavo, nunca aproximado.
+Representação em centavos inteiros (`10101` para R$101,01), nunca `float`.
+
+**Política de arredondamento (ajuste 1 da revisão externa — normativa, não exemplo):**
+
+```
+RESERVE     = floor(revenue * 50 / 100)
+OPERATIONS  = floor(revenue * 30 / 100)
+EXPANSION   = floor(revenue * 20 / 100)
+remainder   = revenue - RESERVE - OPERATIONS - EXPANSION
+RESERVE    += remainder
+```
+
+Invariante obrigatória, sempre, centavo a centavo, nunca aproximado: `RESERVE + OPERATIONS + EXPANSION == REVENUE`. Fechada aqui para que a implementação não precise decidir isso no meio do código.
+
+### `SIMULATION` e `REAL` são escopos de ledger isolados desde o M5 (ajuste 2 da revisão externa)
+
+Não basta marcar `PaymentEvidence` como `SIMULATED`/`TEST` — o isolamento precisa existir também no lado do ledger, para que nenhuma leitura futura (inclusive decisões autônomas do M6) confunda dinheiro simulado com caixa real:
+
+```
+SIMULATED PaymentEvidence → lançamentos de escopo SIMULATION → SIMULATION balance
+EXTERNAL_VERIFIED PaymentEvidence → lançamentos de escopo REAL → REAL cash/revenue
+```
+
+Todo lançamento de `financial_ledger` carrega um `ledger_scope` (`SIMULATION`/`REAL`). `available_real_cash`, `external_revenue` e qualquer futura métrica de `SELF_SUSTAINING` só somam lançamentos de escopo `REAL` — nunca `SIMULATION`. No M5, só o caminho `SIMULATION` existe; o M8 é quem introduz o primeiro lançamento `REAL`. O motivo concreto: no M6, quando o Diretor começar a tomar decisões autônomas com base em saldo, ele nunca pode achar que a empresa tem R$500 porque um teste econômico do M5 colocou R$500 no ledger.
 
 ### `PAID` é alcançável no M5 — só com pagamento explicitamente simulado
 
@@ -113,15 +139,15 @@ M5 é conservador de propósito: o reconciliador produz `RECONCILIATION_OK`/`REC
 | 5 | Experiência só vira memória corporativa através de `MemoryProposal → MemoryValidator`; nunca automaticamente. |
 | 6 | Memória mantém proveniência/evidência, confiança, origem, timestamps e status/expiração quando aplicável. |
 | 7 | Conteúdo `UNTRUSTED_EXTERNAL` (M4) armazenado como evidência de experiência/memória nunca ganha autoridade por estar ali. |
-| 8 | `pgvector` é usado de verdade para armazenamento e recuperação top-K, não só uma coluna `vector` ociosa. |
+| 8 | `pgvector` é usado de verdade: armazenamento, compatibilidade dimensional, filtragem por escopo, cálculo de distância e recuperação top-K funcionando. O `DeterministicEmbeddingProvider` existe só para provar essa infraestrutura — não constitui prova de qualidade semântica (ajuste 3 da revisão externa); o relatório de fechamento nunca descreve isso como "memória semântica funcionando". |
 | 9 | Embeddings do M5 são determinísticos/locais de teste, nunca uma chamada paga; `embedding_provider`/`model`/`version`/`dimensions` ficam identificados por memória. |
 | 10 | Recuperação é filtrável por escopo (empresa/agente/task/capability) sem vazar conhecimento entre escopos indevidos. |
 | 11 | Performance de agente é calculada por janela temporal, a partir de fatos com proveniência — nunca um contador mutável sem rastro. |
 | 12 | Retries/falhas/reviews/custo/duração entram corretamente na avaliação de performance, sem dupla contagem. |
 | 13 | M5 calcula `AgentPerformanceAssessment` (com `recommended_action` opcional) mas **nunca** transiciona o lifecycle do agente automaticamente — isso é M6. |
 | 14 | `financial_ledger` passa a receber fatos econômicos por um serviço único e idempotente, continua append-only. |
-| 15 | Dinheiro usa representação exata (centavos inteiros, nunca float); o split 50/30/20 conserva exatamente 100% do valor, incluindo resíduo de centavos, por política de arredondamento determinística e documentada. |
-| 16 | Pagamento simulado prova `SUBMITTED → ACCEPTED → PAYMENT_PENDING → PAID`, mas fica inequivocamente marcado como `SIMULATED`/`TEST` — nunca conta como receita externa real nem marca `SELF_SUSTAINING`. |
+| 15 | Dinheiro usa representação exata (centavos inteiros, nunca float); o split 50/30/20 segue a política normativa de arredondamento (ajuste 1: `floor` por bucket, resíduo sempre para `RESERVE`) e conserva exatamente 100% do valor, sempre. |
+| 16 | Pagamento simulado prova `SUBMITTED → ACCEPTED → PAYMENT_PENDING → PAID`, mas fica inequivocamente marcado como `SIMULATED`/`TEST`. Todo lançamento de `financial_ledger` carrega `ledger_scope` (`SIMULATION`/`REAL`) — `SIMULATION` nunca soma em `available_real_cash`, `external_revenue` nem em qualquer métrica de `SELF_SUSTAINING` (ajuste 2 da revisão externa). |
 | 17 | Postar a mesma confirmação de pagamento é idempotente; concorrência nunca duplica receita. |
 | 18 | Reconciliação detecta `PAID` sem ledger, ledger órfão/duplicado, split ausente/duplicado/incorreto, e produz evidência — sem apagar ou reescrever histórico. Nunca conserta dinheiro sozinha no M5. |
 | 19 | Custos técnicos (`model_calls`/`tool_calls`/`budget_reservations`) permanecem separados do ledger econômico, com fronteira explícita documentada para um futuro Cost Accounting transformar custo real comprovado em lançamento. |
