@@ -28,6 +28,8 @@ async function main(): Promise<void> {
     store,
     governor,
     aiMode: config.AI_MODE,
+    pool,
+    adminSecret: config.FOUNDER_ADMIN_SECRET,
   });
 
   const shutdown = createApiShutdown({

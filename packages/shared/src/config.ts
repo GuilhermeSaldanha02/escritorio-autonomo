@@ -39,6 +39,12 @@ const envSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'use apenas letras minúsculas, números e hífen')
     .default('escritorio'),
   CONSTITUTION_PATH: z.string().min(1).optional(),
+  /**
+   * Segredo do fundador para a rota administrativa do Emergency Stop. Vem SÓ do ambiente do
+   * processo da API: nenhum agente, prompt, Tool Gateway ou sandbox o recebe. Ausente, a rota
+   * nem existe (404) e a CLI é o único caminho.
+   */
+  FOUNDER_ADMIN_SECRET: z.string().min(16, 'use pelo menos 16 caracteres').optional(),
   /** Prazo para API/Worker encerrarem graciosamente. O orquestrador de processos precisa esperar mais que isso. */
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(20_000),
 });

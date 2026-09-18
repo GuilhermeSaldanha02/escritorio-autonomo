@@ -1,5 +1,6 @@
 packages:
   - apps/api
+  - apps/cli
   - apps/worker
   - packages/*
   - infrastructure/database

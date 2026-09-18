@@ -1,5 +1,6 @@
 import { type Pool, type Queryable, withTransaction } from '@escritorio/database';
 import { EventStore } from '@escritorio/events';
+import { resumePausedWork } from './paused-work.js';
 
 /**
  * Só uma autoridade humana aciona ou libera o Emergency Stop (M6-PLANO.md,
@@ -102,4 +103,24 @@ export class EmergencyStopService {
       return kind;
     });
   }
+}
+
+export interface ReleaseOutcome {
+  transition: StopTransition;
+  /** Trabalho pausado que voltou à fila. Só há retomada com o Stop de fato liberado. */
+  resumed: number;
+}
+
+/**
+ * Libera o Emergency Stop e devolve à fila o trabalho que ele pausou. É o caminho
+ * único de RELEASE das duas portas do fundador (CLI e API). A retomada roda também
+ * quando o Stop já estava liberado: se o processo caiu entre liberar e retomar, repetir
+ * o comando conclui o serviço, e `resumePausedWork` é idempotente.
+ */
+export async function releaseAndResume(pool: Pool, actor: StopActor, reason: string, attempts: number): Promise<ReleaseOutcome> {
+  const service = new EmergencyStopService(pool);
+  const transition = await service.release(actor, reason);
+  if ((await service.state()).status !== 'CLEAR') return { transition, resumed: 0 };
+  const { resumed } = await resumePausedWork(pool, attempts);
+  return { transition, resumed };
 }

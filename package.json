@@ -32,6 +32,7 @@
     "@escritorio/ai": "workspace:*",
     "@escritorio/api": "workspace:*",
     "@escritorio/autonomy": "workspace:*",
+    "@escritorio/cli": "workspace:*",
     "@escritorio/budget": "workspace:*",
     "@escritorio/cacador": "workspace:*",
     "@escritorio/database": "workspace:*",
