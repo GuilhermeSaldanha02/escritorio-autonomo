@@ -47,7 +47,10 @@ export function readMigrations(dir: string = MIGRATIONS_DIR): Migration[] {
       if (up === undefined || down === undefined) {
         throw new MigrationError(`Migration ${id} precisa dos dois arquivos: .up.sql e .down.sql`);
       }
-      return { id, up, down, checksum: createHash('sha256').update(up).digest('hex') };
+      // Fim de linha não faz parte do conteúdo: o mesmo arquivo com CRLF (checkout no
+      // Windows, worktree, editor) não pode virar "migration editada depois de aplicada".
+      const normalized = up.replace(/\r\n/g, '\n');
+      return { id, up, down, checksum: createHash('sha256').update(normalized).digest('hex') };
     });
 }
 

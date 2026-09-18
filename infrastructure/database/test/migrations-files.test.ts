@@ -39,6 +39,18 @@ describe('arquivos de migration', () => {
     }
   });
 
+  it('o checksum ignora fim de linha: o mesmo arquivo com CRLF não vira "migration editada"', () => {
+    const lf = readMigrations(tempDir({ '0001_x.up.sql': 'SELECT 1;\nSELECT 2;\n', '0001_x.down.sql': 'SELECT 0;' }));
+    const crlf = readMigrations(tempDir({ '0001_x.up.sql': 'SELECT 1;\r\nSELECT 2;\r\n', '0001_x.down.sql': 'SELECT 0;' }));
+    expect(crlf[0]?.checksum).toBe(lf[0]?.checksum);
+  });
+
+  it('o checksum ainda muda quando o conteúdo muda de verdade', () => {
+    const a = readMigrations(tempDir({ '0001_x.up.sql': 'SELECT 1;', '0001_x.down.sql': 'SELECT 0;' }));
+    const b = readMigrations(tempDir({ '0001_x.up.sql': 'SELECT 2;', '0001_x.down.sql': 'SELECT 0;' }));
+    expect(a[0]?.checksum).not.toBe(b[0]?.checksum);
+  });
+
   it('recusa migration sem arquivo de reversão', () => {
     const dir = tempDir({ '0001_x.up.sql': 'SELECT 1;' });
     expect(() => readMigrations(dir)).toThrow(/precisa dos dois arquivos/);
