@@ -12,6 +12,7 @@ export const JOB_NAMES = {
   DECIDE_OPPORTUNITY: 'decide-opportunity',
   DEVELOP_TASK: 'develop-task',
   REVIEW_TASK: 'review-task',
+  DISCOVER_OPPORTUNITIES: 'discover-opportunities',
 } as const;
 
 export const diagnosticJobSchema = z
@@ -35,6 +36,9 @@ export type DevelopTaskJobData = z.infer<typeof developTaskJobSchema>;
 
 export const reviewTaskJobSchema = z.object({ taskId: z.uuid(), correlationId: z.uuid() }).strict();
 export type ReviewTaskJobData = z.infer<typeof reviewTaskJobSchema>;
+
+export const discoverOpportunitiesJobSchema = z.object({ correlationId: z.uuid() }).strict();
+export type DiscoverOpportunitiesJobData = z.infer<typeof discoverOpportunitiesJobSchema>;
 
 /**
  * Produtor (API) falha rápido quando o Redis cai, para o /health e as rotas

@@ -1,0 +1,20 @@
+DROP INDEX opportunities_source_external_id_idx;
+
+ALTER TABLE opportunities
+  DROP COLUMN reward_status,
+  DROP COLUMN reward_source,
+  DROP COLUMN payment_conditions,
+  DROP COLUMN eligibility_status,
+  DROP COLUMN automation_policy_status,
+  DROP COLUMN verified_at,
+  DROP COLUMN external_id,
+  DROP COLUMN canonical_url,
+  DROP COLUMN target_identity,
+  DROP COLUMN content_fingerprint,
+  DROP COLUMN content_hash,
+  DROP COLUMN source_updated_at,
+  DROP COLUMN last_seen_at,
+  DROP COLUMN trust_level,
+  DROP COLUMN raw_external_content,
+  DROP COLUMN normalized_content,
+  DROP COLUMN raw_hash;

@@ -1,13 +1,15 @@
 import { UnrecoverableError, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { AiGateway, ModelRouter } from '@escritorio/ai';
-import { JOB_NAMES, QUEUE_NAMES } from '@escritorio/events';
+import type { SourceConnector } from '@escritorio/cacador';
+import { EventBus, JOB_NAMES, QUEUE_NAMES } from '@escritorio/events';
 import type { Governor } from '@escritorio/governor';
 import type { Pool } from '@escritorio/database';
 import type { SandboxManager } from '@escritorio/tools';
 import { ToolGateway } from '@escritorio/tool-gateway';
 import { describeError, type Logger } from '@escritorio/shared';
 import { createDevelopmentHandler } from './development-handler.js';
+import { createDiscoveryHandler } from './discovery-handler.js';
 import { createOpportunityHandler } from './opportunity-handler.js';
 import { createReviewHandler } from './review-handler.js';
 
@@ -17,6 +19,8 @@ export interface OrchestratorWorkerDeps {
   pool: Pool;
   governor: Governor;
   sandboxManager: SandboxManager;
+  /** Source Connector real do Caçador (M4) — quem constrói escolhe a fonte (ex.: GitHubConnector). */
+  connector: SourceConnector;
   logger: Logger;
   /** Repassado ao development-handler — testável sem esperar o atraso real de produção. */
   waitSlotDelayMs?: number;
@@ -32,7 +36,9 @@ export interface OrchestratorWorkerDeps {
 /**
  * Consumidor da fila `orchestrator` — um job por transição do ciclo (§8.1):
  * `decide-opportunity` (Diretor), `develop-task` (Desenvolvedor em sandbox),
- * `review-task` (Revisor em sandbox independente). Cada handler é idempotente
+ * `review-task` (Revisor em sandbox independente), `discover-opportunities`
+ * (Caçador — M4, roda o SourceConnector real e publica `OPPORTUNITY_FOUND`
+ * só para o que a Promotion Policy liberou). Cada handler é idempotente
  * por leitura de estado (packages/events/src/transitions.ts é quem garante
  * atomicidade), então uma reentrega do BullMQ nunca duplica trabalho nem pula
  * uma transição.
@@ -48,6 +54,7 @@ export function createOrchestratorWorker({
   pool,
   governor,
   sandboxManager,
+  connector,
   logger,
   waitSlotDelayMs,
   lockDuration,
@@ -66,6 +73,7 @@ export function createOrchestratorWorker({
   const handleDecideOpportunity = createOpportunityHandler({ pool, governor, aiGateway, logger });
   const handleDevelopTask = createDevelopmentHandler({ pool, governor, toolGateway, logger, waitSlotDelayMs });
   const handleReviewTask = createReviewHandler({ pool, governor, toolGateway, logger });
+  const handleDiscoverOpportunities = createDiscoveryHandler({ pool, bus: new EventBus(pool), governor, connector, logger });
 
   const worker = new Worker(
     QUEUE_NAMES.ORCHESTRATOR,
@@ -77,6 +85,8 @@ export function createOrchestratorWorker({
           return handleDevelopTask(job);
         case JOB_NAMES.REVIEW_TASK:
           return handleReviewTask(job);
+        case JOB_NAMES.DISCOVER_OPPORTUNITIES:
+          return handleDiscoverOpportunities(job);
         default:
           throw new UnrecoverableError(`Job desconhecido na fila ${QUEUE_NAMES.ORCHESTRATOR}: ${job.name}`);
       }

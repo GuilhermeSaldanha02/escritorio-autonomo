@@ -1,6 +1,7 @@
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { FakeSourceConnector } from '@escritorio/cacador';
 import { type Pool, seedInitialAgents } from '@escritorio/database';
 import {
   createQueues,
@@ -47,7 +48,8 @@ beforeEach(async () => {
   dispatcher.start();
 
   const sandboxManager = new SandboxManager(createDockerClient(), logger);
-  worker = createOrchestratorWorker({ connection: consumer, prefix, pool, governor, sandboxManager, logger });
+  const connector = new FakeSourceConnector('github', [{ status: 'OK', candidates: [] }]);
+  worker = createOrchestratorWorker({ connection: consumer, prefix, pool, governor, sandboxManager, connector, logger });
   await worker.waitUntilReady();
 
   bus = new EventBus(pool);
@@ -448,12 +450,14 @@ describe('Orquestrador — crash recovery (decisão da revisão externa do fecha
 
       const connA = createRedisConnection(testRedisUrl(), 'consumer', 'crash-test-worker-a');
       const connB = createRedisConnection(testRedisUrl(), 'consumer', 'crash-test-worker-b');
+      const crashTestConnector = new FakeSourceConnector('github', [{ status: 'OK', candidates: [] }]);
       const workerA = createOrchestratorWorker({
         connection: connA,
         prefix,
         pool,
         governor,
         sandboxManager: hangingSandbox,
+        connector: crashTestConnector,
         logger,
         ...shortLock,
       });
@@ -497,6 +501,7 @@ describe('Orquestrador — crash recovery (decisão da revisão externa do fecha
           pool,
           governor,
           sandboxManager: realSandboxManager,
+          connector: crashTestConnector,
           logger,
           ...shortLock,
         });
