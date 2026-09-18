@@ -4,10 +4,13 @@ import { EventStore } from '@escritorio/events';
 import { createTestPool, resetDatabase } from './support.js';
 
 const TABLES = [
+  'agent_performance',
   'agents',
   'budget_reservations',
   'events',
+  'experiences',
   'financial_ledger',
+  'memories',
   'model_calls',
   'opportunities',
   'outbox',
@@ -43,6 +46,11 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0011_memoria_performance']);
+    expect(await publicTables()).not.toContain('experiences');
+    expect(await publicTables()).not.toContain('memories');
+    expect(await publicTables()).not.toContain('agent_performance');
+
     expect(await migrateDown(pool, 1)).toEqual(['0010_financial_ledger_economy']);
     expect(await publicTables()).not.toContain('payment_evidence');
     expect(await publicTables()).toContain('financial_ledger'); // 0010 só retipa colunas, não a tabela
@@ -85,6 +93,7 @@ describe('migrations', () => {
       '0008_model_calls_idempotent',
       '0009_opportunities_m4_identity',
       '0010_financial_ledger_economy',
+      '0011_memoria_performance',
     ]);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
@@ -99,6 +108,7 @@ describe('migrations', () => {
         '0008_model_calls_idempotent',
         '0009_opportunities_m4_identity',
         '0010_financial_ledger_economy',
+        '0011_memoria_performance',
       ],
       pending: [],
     });
