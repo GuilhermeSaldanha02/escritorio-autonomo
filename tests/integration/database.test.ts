@@ -42,6 +42,9 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0008_model_calls_idempotent']);
+    expect(await publicTables()).toContain('model_calls'); // 0008 só adiciona coluna, não uma tabela
+
     expect(await migrateDown(pool, 1)).toEqual(['0007_tool_calls']);
     expect(await publicTables()).not.toContain('tool_calls');
 
@@ -71,6 +74,7 @@ describe('migrations', () => {
       '0005_budget',
       '0006_model_calls_audit',
       '0007_tool_calls',
+      '0008_model_calls_idempotent',
     ]);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
@@ -82,6 +86,7 @@ describe('migrations', () => {
         '0005_budget',
         '0006_model_calls_audit',
         '0007_tool_calls',
+        '0008_model_calls_idempotent',
       ],
       pending: [],
     });

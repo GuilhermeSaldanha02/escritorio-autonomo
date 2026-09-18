@@ -23,6 +23,7 @@ describe('arquivos de migration', () => {
       '0005_budget',
       '0006_model_calls_audit',
       '0007_tool_calls',
+      '0008_model_calls_idempotent',
     ]);
   });
 

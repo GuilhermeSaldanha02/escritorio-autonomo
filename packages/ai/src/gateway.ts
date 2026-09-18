@@ -48,68 +48,92 @@ export class AiGateway {
     const mode = router.mode;
     const estimate = (this.deps.estimateCostBrl ?? defaultEstimate)(request, mode);
     const purpose = this.deps.budgetPurpose ?? DEFAULT_PURPOSE;
-    const idempotencyKey = `ai-call:${request.agentId}:${request.correlationId ?? request.taskId ?? crypto.randomUUID()}`;
+    // Mesma chave usada na reserva de orçamento: identifica a operação
+    // lógica, não a tentativa de entrega. Uma reentrega do BullMQ (ou
+    // qualquer outro at-least-once) resolve para a mesma linha de auditoria,
+    // não cria uma segunda (recomendação da revisão externa no fechamento
+    // do M3 — ver docs/M3-INTELIGENCIA-GOVERNADA.md).
+    const logicalCallId = `ai-call:${request.agentId}:${request.correlationId ?? request.taskId ?? crypto.randomUUID()}`;
+
+    const existing = await this.#findByLogicalCallId(logicalCallId);
+    if (existing) return existing;
 
     const reservation = await reserveBudget(pool, governor, {
       purpose,
       amountBrl: estimate,
-      idempotencyKey,
+      idempotencyKey: logicalCallId,
       taskId: request.taskId,
       correlationId: request.correlationId,
     });
 
     if (reservation.outcome === 'DENIED') {
-      const modelCallId = await this.#recordCall({
+      return this.#recordCall({
         request,
         mode,
         status: 'BLOCKED',
         error: reservation.decision.allowed ? undefined : reservation.decision.reason,
+        logicalCallId,
       });
-      return { status: 'BLOCKED', modelCallId, error: reservation.decision.allowed ? undefined : reservation.decision.reason };
     }
 
     const adapter = router.resolve();
     try {
       const result = await adapter.complete(request);
       if (reservation.reservationId) await settleReservation(pool, reservation.reservationId, estimate);
-      const modelCallId = await this.#recordCall({
+      return this.#recordCall({
         request,
         mode,
         status: 'SUCCESS',
         result,
         costBrl: estimate,
         budgetReservationId: reservation.reservationId,
+        logicalCallId,
       });
-      return { status: 'SUCCESS', content: result.content, modelCallId };
     } catch (error) {
       if (reservation.reservationId) await releaseReservation(pool, reservation.reservationId);
       const message = error instanceof ModelUnavailableError ? error.message : describeError(error).message;
       logger.warn({ agentId: request.agentId, mode, err: describeError(error) }, 'chamada de IA falhou');
-      const modelCallId = await this.#recordCall({
+      return this.#recordCall({
         request,
         mode,
         status: 'ERROR',
         error: message,
         budgetReservationId: reservation.reservationId,
+        logicalCallId,
       });
-      return { status: 'ERROR', modelCallId, error: message };
     }
+  }
+
+  async #findByLogicalCallId(logicalCallId: string): Promise<AiCompletionOutcome | undefined> {
+    const { rows } = await this.deps.pool.query<{ id: string; status: AiCompletionStatus; error: string | null }>(
+      `SELECT id, status, error FROM model_calls WHERE logical_call_id = $1`,
+      [logicalCallId],
+    );
+    const row = rows[0];
+    if (!row) return undefined;
+    // Reentrega: a operação lógica já foi resolvida antes. Não repete a
+    // chamada ao adapter — `content` não é persistido (não é dado
+    // financeiro/de auditoria obrigatório), só o resultado da tentativa
+    // original importa para quem só usa isto como nota de auditoria.
+    return { status: row.status, modelCallId: row.id, error: row.error ?? undefined };
   }
 
   async #recordCall(params: {
     request: AiCompletionRequest;
     mode: AiMode;
     status: AiCompletionStatus;
-    result?: { provider: string; model: string; inputTokens: number; outputTokens: number; durationMs: number };
+    result?: { content: string; provider: string; model: string; inputTokens: number; outputTokens: number; durationMs: number };
     costBrl?: number;
     error?: string;
     budgetReservationId?: string;
-  }): Promise<string> {
-    const { request, mode, status, result, error, budgetReservationId } = params;
+    logicalCallId: string;
+  }): Promise<AiCompletionOutcome> {
+    const { request, mode, status, result, error, budgetReservationId, logicalCallId } = params;
     const { rows } = await this.deps.pool.query<{ id: string }>(
       `INSERT INTO model_calls
-         (agent_id, task_id, correlation_id, mode, provider, model, input_tokens, output_tokens, cost_brl, duration_ms, status, error, budget_reservation_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         (agent_id, task_id, correlation_id, mode, provider, model, input_tokens, output_tokens, cost_brl, duration_ms, status, error, budget_reservation_id, logical_call_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       ON CONFLICT (logical_call_id) DO NOTHING
        RETURNING id`,
       [
         request.agentId,
@@ -125,8 +149,17 @@ export class AiGateway {
         status,
         error ?? null,
         budgetReservationId ?? null,
+        logicalCallId,
       ],
     );
-    return rows[0]!.id;
+    const inserted = rows[0];
+    if (inserted) return { status, content: result?.content, modelCallId: inserted.id, error };
+
+    // Corrida genuína (duas chamadas concorrentes, não sequenciais) perdeu
+    // para outra que já commitou a mesma logical_call_id — devolve o que
+    // realmente ficou gravado, nunca insere uma segunda linha.
+    const winner = await this.#findByLogicalCallId(logicalCallId);
+    if (!winner) throw new Error(`model_calls com logical_call_id ${logicalCallId} deveria existir e não foi encontrado`);
+    return winner;
   }
 }

@@ -41,6 +41,32 @@ describe('AiGateway — modo mock (operacional no M3)', () => {
   });
 });
 
+describe('AiGateway — idempotência da auditoria (recomendação da revisão externa no fechamento do M3)', () => {
+  it('duas chamadas com o mesmo agentId+correlationId resolvem para a MESMA linha em model_calls', async () => {
+    const gateway = new AiGateway({ pool, governor, router: new ModelRouter({ mode: 'mock' }), logger });
+    const correlationId = crypto.randomUUID();
+
+    const first = await gateway.complete({ agentId: 'DIRETOR-001', correlationId, prompt: 'resuma a decisão' });
+    const second = await gateway.complete({ agentId: 'DIRETOR-001', correlationId, prompt: 'resuma a decisão' });
+
+    expect(second.modelCallId).toBe(first.modelCallId);
+    expect(second.status).toBe('SUCCESS');
+
+    const { rows } = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM model_calls WHERE agent_id = 'DIRETOR-001' AND correlation_id = $1`,
+      [correlationId],
+    );
+    expect(Number(rows[0]?.count)).toBe(1);
+  });
+
+  it('correlationId diferente nunca compartilha a linha — não é uma dedup por acidente', async () => {
+    const gateway = new AiGateway({ pool, governor, router: new ModelRouter({ mode: 'mock' }), logger });
+    const first = await gateway.complete({ agentId: 'DIRETOR-001', correlationId: crypto.randomUUID(), prompt: 'x' });
+    const second = await gateway.complete({ agentId: 'DIRETOR-001', correlationId: crypto.randomUUID(), prompt: 'x' });
+    expect(second.modelCallId).not.toBe(first.modelCallId);
+  });
+});
+
 describe('AiGateway — orçamento nega antes de qualquer execução (critério 4)', () => {
   it('BLOCKED quando o Governor nega o orçamento; nunca chama o adapter', async () => {
     const gateway = new AiGateway({
