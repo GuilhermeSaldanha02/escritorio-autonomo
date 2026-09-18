@@ -22,6 +22,20 @@ export const GOVERNED_CAPABILITY_NAMES = Object.keys(GOVERNED_CAPABILITIES) as [
 
 export type SpendPurpose = 'DEVELOPMENT_EXTERNAL_SERVICE' | 'EXPERIMENTAL_BOOTSTRAP';
 
+/**
+ * Ferramentas que o Tool Gateway (M3) pode invocar. Uma ferramenta fora
+ * desta lista é negada por padrão — o Tool Gateway nunca executa algo que
+ * o Governor não conhece. `requiredCapability` é opcional: `CODE_EXECUTION`
+ * já é isolada pelo Sandbox Manager (§8.6), então não exige nenhuma
+ * capacidade adicional além de existir no registro.
+ */
+export const GOVERNED_TOOLS = {
+  CODE_EXECUTION: { requiredCapability: undefined },
+} as const satisfies Record<string, { requiredCapability: GovernedCapability | undefined }>;
+
+export type GovernedTool = keyof typeof GOVERNED_TOOLS;
+export const GOVERNED_TOOL_NAMES = Object.keys(GOVERNED_TOOLS) as [GovernedTool, ...GovernedTool[]];
+
 export type GovernedAction =
   | { kind: 'CAPABILITY'; capability: GovernedCapability }
   | {
@@ -33,7 +47,8 @@ export type GovernedAction =
       approvedByFounder: boolean;
     }
   | { kind: 'TASK_RETRY'; /** Número da nova tentativa extra (1 = primeiro retry). */ retryNumber: number }
-  | { kind: 'TASK_START'; runningTasks: number };
+  | { kind: 'TASK_START'; runningTasks: number }
+  | { kind: 'TOOL_CALL'; tool: string };
 
 export type GovernorDecision =
   | { allowed: true }
@@ -70,7 +85,20 @@ export class Governor {
         return this.#evaluateRetry(action.retryNumber);
       case 'TASK_START':
         return this.#evaluateStart(action.runningTasks);
+      case 'TOOL_CALL':
+        return this.#evaluateToolCall(action.tool);
     }
+  }
+
+  #evaluateToolCall(tool: string): GovernorDecision {
+    const rule = (GOVERNED_TOOLS as Record<string, { requiredCapability: GovernedCapability | undefined } | undefined>)[tool];
+    if (!rule) {
+      return deny('UNKNOWN_TOOL', `Ferramenta desconhecida: ${tool}. Negado por padrão.`);
+    }
+    if (rule.requiredCapability) {
+      return this.#evaluateCapability(rule.requiredCapability);
+    }
+    return allow;
   }
 
   #evaluateCapability(capability: GovernedCapability): GovernorDecision {

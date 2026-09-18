@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GOVERNED_CAPABILITIES,
   GOVERNED_CAPABILITY_NAMES,
+  GOVERNED_TOOL_NAMES,
   Governor,
   type GovernedCapability,
   loadConstitution,
@@ -73,6 +74,19 @@ describe('Governor — orçamento', () => {
         rule: 'INVALID_AMOUNT',
       });
     }
+  });
+});
+
+describe('Governor — chamada de ferramenta (M3, Tool Gateway)', () => {
+  it.each(GOVERNED_TOOL_NAMES)('permite a ferramenta conhecida %s', (tool) => {
+    expect(governor.evaluate({ kind: 'TOOL_CALL', tool })).toEqual({ allowed: true });
+  });
+
+  it('nega por padrão uma ferramenta fora do registro — o Tool Gateway nunca executa o desconhecido', () => {
+    expect(governor.evaluate({ kind: 'TOOL_CALL', tool: 'DELETE_PRODUCTION_DATABASE' })).toMatchObject({
+      allowed: false,
+      rule: 'UNKNOWN_TOOL',
+    });
   });
 });
 

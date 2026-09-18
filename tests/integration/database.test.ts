@@ -3,7 +3,17 @@ import { INITIAL_AGENTS, migrateDown, migrateUp, migrationStatus, seedInitialAge
 import { EventStore } from '@escritorio/events';
 import { createTestPool, resetDatabase } from './support.js';
 
-const TABLES = ['agents', 'events', 'financial_ledger', 'model_calls', 'opportunities', 'outbox', 'tasks'];
+const TABLES = [
+  'agents',
+  'budget_reservations',
+  'events',
+  'financial_ledger',
+  'model_calls',
+  'opportunities',
+  'outbox',
+  'tasks',
+  'tool_calls',
+];
 
 let pool: Pool;
 
@@ -32,6 +42,18 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0008_model_calls_idempotent']);
+    expect(await publicTables()).toContain('model_calls'); // 0008 só adiciona coluna, não uma tabela
+
+    expect(await migrateDown(pool, 1)).toEqual(['0007_tool_calls']);
+    expect(await publicTables()).not.toContain('tool_calls');
+
+    expect(await migrateDown(pool, 1)).toEqual(['0006_model_calls_audit']);
+    expect(await publicTables()).toContain('model_calls'); // 0006 só adiciona colunas, não uma tabela
+
+    expect(await migrateDown(pool, 1)).toEqual(['0005_budget']);
+    expect(await publicTables()).not.toContain('budget_reservations');
+
     expect(await migrateDown(pool, 1)).toEqual(['0004_occurred_at_clock_real']);
     expect(await publicTables()).toContain('outbox'); // 0004 só muda um DEFAULT, não uma tabela
 
@@ -44,10 +66,28 @@ describe('migrations', () => {
     expect(await migrateDown(pool, 1)).toEqual(['0001_nucleo']);
     expect(await publicTables()).toEqual(['schema_migrations']);
 
-    expect(await migrateUp(pool)).toEqual(['0001_nucleo', '0002_outbox', '0003_orquestrador', '0004_occurred_at_clock_real']);
+    expect(await migrateUp(pool)).toEqual([
+      '0001_nucleo',
+      '0002_outbox',
+      '0003_orquestrador',
+      '0004_occurred_at_clock_real',
+      '0005_budget',
+      '0006_model_calls_audit',
+      '0007_tool_calls',
+      '0008_model_calls_idempotent',
+    ]);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
-      applied: ['0001_nucleo', '0002_outbox', '0003_orquestrador', '0004_occurred_at_clock_real'],
+      applied: [
+        '0001_nucleo',
+        '0002_outbox',
+        '0003_orquestrador',
+        '0004_occurred_at_clock_real',
+        '0005_budget',
+        '0006_model_calls_audit',
+        '0007_tool_calls',
+        '0008_model_calls_idempotent',
+      ],
       pending: [],
     });
   });

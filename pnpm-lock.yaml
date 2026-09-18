@@ -8,9 +8,15 @@ importers:
 
   .:
     devDependencies:
+      '@escritorio/ai':
+        specifier: workspace:*
+        version: link:packages/ai
       '@escritorio/api':
         specifier: workspace:*
         version: link:apps/api
+      '@escritorio/budget':
+        specifier: workspace:*
+        version: link:packages/budget
       '@escritorio/database':
         specifier: workspace:*
         version: link:infrastructure/database
@@ -23,6 +29,9 @@ importers:
       '@escritorio/shared':
         specifier: workspace:*
         version: link:packages/shared
+      '@escritorio/tool-gateway':
+        specifier: workspace:*
+        version: link:packages/tool-gateway
       '@escritorio/tools':
         specifier: workspace:*
         version: link:packages/tools
@@ -89,6 +98,9 @@ importers:
       '@escritorio/agents':
         specifier: workspace:*
         version: link:../../packages/agents
+      '@escritorio/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@escritorio/database':
         specifier: workspace:*
         version: link:../../infrastructure/database
@@ -101,6 +113,9 @@ importers:
       '@escritorio/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@escritorio/tool-gateway':
+        specifier: workspace:*
+        version: link:../../packages/tool-gateway
       '@escritorio/tools':
         specifier: workspace:*
         version: link:../../packages/tools
@@ -142,6 +157,30 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
 
+  packages/ai:
+    dependencies:
+      '@escritorio/budget':
+        specifier: workspace:*
+        version: link:../budget
+      '@escritorio/database':
+        specifier: workspace:*
+        version: link:../../infrastructure/database
+      '@escritorio/governor':
+        specifier: workspace:*
+        version: link:../governor
+      '@escritorio/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/budget:
+    dependencies:
+      '@escritorio/database':
+        specifier: workspace:*
+        version: link:../../infrastructure/database
+      '@escritorio/governor':
+        specifier: workspace:*
+        version: link:../governor
+
   packages/events:
     dependencies:
       '@escritorio/database':
@@ -180,6 +219,24 @@ importers:
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+
+  packages/tool-gateway:
+    dependencies:
+      '@escritorio/budget':
+        specifier: workspace:*
+        version: link:../budget
+      '@escritorio/database':
+        specifier: workspace:*
+        version: link:../../infrastructure/database
+      '@escritorio/governor':
+        specifier: workspace:*
+        version: link:../governor
+      '@escritorio/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@escritorio/tools':
+        specifier: workspace:*
+        version: link:../tools
 
   packages/tools:
     dependencies:

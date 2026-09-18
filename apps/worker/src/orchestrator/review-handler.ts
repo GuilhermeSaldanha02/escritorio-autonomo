@@ -10,7 +10,7 @@ import {
   transitionTaskIn,
 } from '@escritorio/events';
 import type { Governor } from '@escritorio/governor';
-import type { SandboxManager } from '@escritorio/tools';
+import { GovernedSandbox, type ToolGateway } from '@escritorio/tool-gateway';
 import type { Logger } from '@escritorio/shared';
 import { z } from 'zod';
 import { recordAgentStateChange } from './agent-state.js';
@@ -19,7 +19,7 @@ import { taskRowToContract, type TaskRow } from './mappers.js';
 export interface ReviewHandlerDeps {
   pool: Pool;
   governor: Governor;
-  sandboxManager: SandboxManager;
+  toolGateway: ToolGateway;
   logger: Logger;
 }
 
@@ -52,7 +52,7 @@ async function loadLatestImplementation(pool: Pool, taskId: string): Promise<Imp
  * O Revisor sempre roda numa sandbox nova (critério 5) — nunca reaproveita a
  * do Desenvolvedor, e nunca recebe quem implementou (packages/agents/src/reviewer.ts).
  */
-export function createReviewHandler({ pool, governor, sandboxManager, logger }: ReviewHandlerDeps) {
+export function createReviewHandler({ pool, governor, toolGateway, logger }: ReviewHandlerDeps) {
   return async function handleReviewTask(job: Job<ReviewTaskJobData>): Promise<void> {
     const { taskId, correlationId } = job.data;
     let task = await loadTask(pool, taskId);
@@ -77,7 +77,8 @@ export function createReviewHandler({ pool, governor, sandboxManager, logger }: 
     if (task.status !== 'IN_REVIEW') return; // já avançou (reentrega tardia) ou está bloqueada/cancelada.
 
     const implementation = await loadLatestImplementation(pool, taskId);
-    const { review, sandboxId: reviewSandboxId } = await reviewInSandbox(sandboxManager, taskRowToContract(task), implementation);
+    const governedSandbox = new GovernedSandbox(toolGateway, 'REVISOR-001', { taskId, correlationId });
+    const { review, sandboxId: reviewSandboxId } = await reviewInSandbox(governedSandbox, taskRowToContract(task), implementation);
 
     if (review.decision === 'PASSED') {
       await recordAgentStateChange(pool, 'REVISOR-001', 'SUCCESS', correlationId, `task:${taskId}:agent-state:review-passed:${task.retry_count}`, { taskId });
