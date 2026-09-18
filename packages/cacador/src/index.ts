@@ -1,3 +1,4 @@
+export * from './deduplicator.js';
 export * from './fake-source-connector.js';
 export * from './hash.js';
 export * from './normalizer.js';

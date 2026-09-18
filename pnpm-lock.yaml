@@ -189,6 +189,9 @@ importers:
 
   packages/cacador:
     dependencies:
+      '@escritorio/database':
+        specifier: workspace:*
+        version: link:../../infrastructure/database
       '@escritorio/http-safe':
         specifier: workspace:*
         version: link:../http-safe
