@@ -38,6 +38,7 @@
     "@escritorio/finance": "workspace:*",
     "@escritorio/governor": "workspace:*",
     "@escritorio/http-safe": "workspace:*",
+    "@escritorio/memory": "workspace:*",
     "@escritorio/shared": "workspace:*",
     "@escritorio/tool-gateway": "workspace:*",
     "@escritorio/tools": "workspace:*",

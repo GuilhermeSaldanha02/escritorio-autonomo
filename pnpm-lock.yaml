@@ -35,6 +35,9 @@ importers:
       '@escritorio/http-safe':
         specifier: workspace:*
         version: link:packages/http-safe
+      '@escritorio/memory':
+        specifier: workspace:*
+        version: link:packages/memory
       '@escritorio/shared':
         specifier: workspace:*
         version: link:packages/shared
@@ -241,6 +244,8 @@ importers:
         version: 4.6.5
 
   packages/http-safe: {}
+
+  packages/memory: {}
 
   packages/shared:
     dependencies:
