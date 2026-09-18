@@ -1,0 +1,16 @@
+-- 0008 — idempotência de model_calls (M3, recomendação da revisão externa
+-- no fechamento do M3, antes de qualquer provider pago real).
+--
+-- A auditoria de uma chamada de IA (AiGateway.complete) não é atômica com a
+-- transição de estado que a envolve (ex.: opportunity-handler.ts). Uma
+-- reentrega tardia do BullMQ podia gerar mais de uma linha em model_calls
+-- para a mesma operação lógica — o gasto já era protegido pela
+-- idempotencyKey da reserva de orçamento (0005), mas a linha de auditoria
+-- em si, não.
+--
+-- logical_call_id identifica a operação lógica (ex.: "ai-call:DIRETOR-001:
+-- <correlationId>"), a mesma chave usada na reserva de orçamento. Reentregas
+-- do mesmo job resolvem para a mesma linha — nunca duas. NULL fica permitido
+-- (múltiplos NULL não colidem no UNIQUE) para não quebrar chamadas antigas
+-- ou de outra origem sem esse identificador.
+ALTER TABLE model_calls ADD COLUMN logical_call_id text UNIQUE;

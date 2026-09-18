@@ -50,7 +50,9 @@ export function decideReview(
  * sandbox do Desenvolvedor comprometida ou com bug minta sobre o resultado.
  */
 export async function reviewInSandbox(
-  sandboxManager: SandboxManager,
+  // Ver nota equivalente em developer.ts: Pick<..., 'run'> aceita qualquer
+  // executor com a mesma forma (GovernedSandbox do Tool Gateway, M3).
+  sandboxManager: Pick<SandboxManager, 'run'>,
   task: DeveloperTask,
   implementation: ImplementationReady,
 ): Promise<{ review: ReviewCompleted; sandboxId: string | undefined }> {

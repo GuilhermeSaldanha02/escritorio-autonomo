@@ -1,9 +1,11 @@
 import { UnrecoverableError, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
+import { AiGateway, ModelRouter } from '@escritorio/ai';
 import { JOB_NAMES, QUEUE_NAMES } from '@escritorio/events';
 import type { Governor } from '@escritorio/governor';
 import type { Pool } from '@escritorio/database';
 import type { SandboxManager } from '@escritorio/tools';
+import { ToolGateway } from '@escritorio/tool-gateway';
 import { describeError, type Logger } from '@escritorio/shared';
 import { createDevelopmentHandler } from './development-handler.js';
 import { createOpportunityHandler } from './opportunity-handler.js';
@@ -51,9 +53,19 @@ export function createOrchestratorWorker({
   lockDuration,
   stalledInterval,
 }: OrchestratorWorkerDeps): Worker {
-  const handleDecideOpportunity = createOpportunityHandler({ pool, governor, logger });
-  const handleDevelopTask = createDevelopmentHandler({ pool, governor, sandboxManager, logger, waitSlotDelayMs });
-  const handleReviewTask = createReviewHandler({ pool, governor, sandboxManager, logger });
+  // Critério 7/12 do M3: o Sandbox Manager cru não vai mais direto para os
+  // handlers — toda execução de código passa pelo Tool Gateway (orçamento +
+  // capacidade) primeiro. `GovernedSandbox` (packages/tool-gateway) satisfaz
+  // a mesma forma que `SandboxManager` tinha, então development-handler.ts
+  // e review-handler.ts (e packages/agents por baixo) não mudam de forma.
+  const toolGateway = new ToolGateway({ pool, governor, sandboxManager, logger });
+  // M3, critério 13: o Diretor consulta o AI Gateway de verdade (AI_MODE
+  // sempre mock nesta fase — ver docs/M3-PLANO.md) só para uma nota de
+  // auditoria; a decisão em si continua vindo de decide()/authorizeExecution().
+  const aiGateway = new AiGateway({ pool, governor, router: new ModelRouter({ mode: 'mock' }), logger });
+  const handleDecideOpportunity = createOpportunityHandler({ pool, governor, aiGateway, logger });
+  const handleDevelopTask = createDevelopmentHandler({ pool, governor, toolGateway, logger, waitSlotDelayMs });
+  const handleReviewTask = createReviewHandler({ pool, governor, toolGateway, logger });
 
   const worker = new Worker(
     QUEUE_NAMES.ORCHESTRATOR,

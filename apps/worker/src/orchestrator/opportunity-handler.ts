@@ -1,5 +1,6 @@
 import type { Job } from 'bullmq';
 import { authorizeExecution, decide } from '@escritorio/agents';
+import type { AiGateway } from '@escritorio/ai';
 import { type Pool, withTransaction } from '@escritorio/database';
 import {
   type DecideOpportunityJobData,
@@ -16,6 +17,7 @@ import { opportunityRequiredCapabilities, opportunityRowToContract, type Opportu
 export interface OpportunityHandlerDeps {
   pool: Pool;
   governor: Governor;
+  aiGateway: AiGateway;
   logger: Logger;
 }
 
@@ -57,7 +59,7 @@ async function findOrCreateTask(
  * (at-least-once) não repete um passo já commitado — ela só avança a partir
  * de onde o banco realmente está.
  */
-export function createOpportunityHandler({ pool, governor, logger }: OpportunityHandlerDeps) {
+export function createOpportunityHandler({ pool, governor, aiGateway, logger }: OpportunityHandlerDeps) {
   return async function handleDecideOpportunity(job: Job<DecideOpportunityJobData>): Promise<void> {
     const { opportunityId, correlationId } = job.data;
     let opportunity = await loadOpportunity(pool, opportunityId);
@@ -157,6 +159,16 @@ export function createOpportunityHandler({ pool, governor, logger }: Opportunity
         });
         return; // nenhuma task é criada — critério 7 do M2.
       }
+
+      // M3, critério 13: ao menos um ciclo do Orquestrador usa o AI Gateway
+      // de verdade (AI_MODE=mock). Nota de auditoria só — não influencia a
+      // decisão, que já foi tomada por `decide()`/`authorizeExecution()`
+      // (critério 8: nenhum LLM participa da decisão final de autorização).
+      await aiGateway.complete({
+        agentId: 'DIRETOR-001',
+        correlationId,
+        prompt: `Resuma em uma frase por que a oportunidade "${opportunity.title}" foi aprovada (score ${decision.score}).`,
+      });
 
       await transitionOpportunity(pool, {
         id: opportunityId,
