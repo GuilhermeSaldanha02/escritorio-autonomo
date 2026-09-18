@@ -1,9 +1,9 @@
 # Relatório — Milestone 4: Caçador Real
 
 - **Data:** 2026-09-18 · **Agente:** Claude (Sonnet 5) · **Branch:** `feat/m4-cacador-real` (saindo de `staging`)
-- **Estado:** implementado, validado localmente, **aguardando revisão externa e depois autorização do dono para o merge**. Nada integrado em `staging`/`main`.
+- **Estado:** implementado, validado localmente e **aprovado pela revisão externa** ("M4 — APROVADO PARA MERGE ✅", ChatGPT, 2026-09-18). **Aguardando autorização do dono para o merge. Nada integrado em `staging`/`main`.**
 - **Autorização de início:** dono, 2026-09-18 ("pode seguir"), depois de aprovar o `M4-PLANO.md` revisado (4 ajustes incorporados). Sessão conduzida de forma autônoma enquanto o dono dormia, com autorização explícita para consultar a revisão externa em pontos de decisão estrutural e para **não** mergear sem autorização.
-- **Consulta prévia (ChatGPT):** duas rodadas antes do código (`docs/M4-PLANO.md`) e **duas consultas adicionais durante a implementação**, por decisões estruturais inesperadas — ver seção 5. Nenhum merge foi proposto ou executado sem essa cadeia de aprovação.
+- **Consulta prévia (ChatGPT):** duas rodadas antes do código (`docs/M4-PLANO.md`), uma consulta adicional durante a implementação por decisão estrutural inesperada (seção 5), e a revisão de fechamento deste relatório (seção 10). Nenhum merge foi proposto ou executado sem essa cadeia de aprovação.
 - **Repositório:** `GuilhermeSaldanha02/escritorio-autonomo` (privado, GitHub).
 
 ---
@@ -89,7 +89,7 @@ c62f20d docs: Adiciona plano do Milestone 4 (Caçador Real)
 | 15 | Bug bounty/security fora do fluxo autônomo, exige humano | ✅ nenhuma mudança no M4 toca essa regra da Constituição (M1) |
 | 16 | Rate limit, timeout, retry/backoff, tratamento explícito de `429`, sem busy-loop | ✅ `withSourcePolicy()` — teto de `maxRetries`, respeita `Retry-After`/`x-ratelimit-reset`; mutação confirmada no teto |
 | 17 | Indisponibilidade/schema drift produz estado conhecido, não corrompe dado existente | ✅ `SOURCE_SCHEMA_DRIFT`/`SOURCE_UNAVAILABLE`/`SOURCE_RATE_LIMITED` interrompem o ciclo sem escrever nada — `discovery-cycle-e2e.test.ts` |
-| 18 | **Real Source Connectivity** — consulta real à API do GitHub, zero resultados é válido | ✅ `tests/integration/github-connector-real.test.ts`, roda contra a internet de verdade |
+| 18 | **Real Source Connectivity** — consulta real à API do GitHub, zero resultados é válido | ✅ `tests/integration-external/github-connector-real.test.ts`, roda contra a internet de verdade (separada da suíte determinística — seção 10) |
 | 19 | **Deterministic Discovery E2E** — servidor fake → Connector real → ... → `OPPORTUNITY_FOUND` → Diretor | ✅ `discovery-cycle-e2e.test.ts` (8 estados) + `discovery-cycle-orchestrator.test.ts` (fecha até o Diretor de verdade, com Postgres+Redis+BullMQ reais) — ver limitação da seção 6 sobre `CONFLICTING` |
 
 ## 5. Duas decisões estruturais inesperadas, ambas levadas à revisão externa antes do código depender delas
@@ -120,8 +120,9 @@ Nenhuma dependência de terceiros nova. `packages/cacador` usa só `@escritorio/
 ```bash
 pnpm install
 pnpm run typecheck && pnpm run lint
-pnpm run test:unit          # 197 testes
-pnpm run test:integration   # 88 testes — requer Docker/Postgres/Redis de dev (pnpm services:up) e acesso à internet (GitHub real)
+pnpm run test:unit                     # 197 testes
+pnpm run test:integration              # 87 testes, determinísticos — requer Docker/Postgres/Redis de dev (pnpm services:up)
+pnpm run test:integration:external     # 1 teste — consulta a internet real (GitHub); smoke test, não é gate obrigatório
 pnpm run build
 ```
 
@@ -135,4 +136,10 @@ M4 implementado e validado localmente: 19 critérios de aceite com prova reexecu
 
 Duas decisões estruturais inesperadas (Algora→GitHub, `ai_allowed`/`automation_allowed`) foram levadas à revisão externa ou corrigidas antes de qualquer código depender delas, seguindo o mesmo processo do M2/M3. `AlgoraEvidenceEnricher` e a fixture `CONFLICTING` do E2E completo ficam registrados como próximo passo, não escondidos.
 
-**Nada foi integrado em `staging`/`main`. Pendente: revisão externa e depois autorização explícita do dono para o merge** — nenhum merge foi executado ou proposto durante a sessão autônoma, mesmo com autorização para continuar sem pausar.
+**Veredito completo da revisão externa (ChatGPT, 2026-09-18):** *"M4 — APROVADO PARA MERGE ✅. Não vejo bloqueante técnico para levar ao dono e solicitar autorização de merge em staging e depois main."* A revisão concordou explicitamente com as três limitações da seção 6 (não bloqueantes) e endossou a leitura da mutação de deduplicação como "evidência de defesa em profundidade", não uma falha do teste. Trecho sobre o achado 5.2: *"Considero a correção necessária e correta [...] esse problema foi descoberto justamente porque o teste não terminou no OPPORTUNITY_FOUND; ele continuou até o Diretor real do fluxo anterior. Isso mostra o valor do critério 19."*
+
+**Uma recomendação pós-aprovação, já aplicada:** separar o teste de conectividade real (critério 18) da suíte de integração determinística, para que indisponibilidade do GitHub/DNS/rate limiting nunca vire build vermelho por uma causa que não é regressão de código. Implementado: `tests/integration-external/` com `vitest.integration-external.config.ts` e script `test:integration:external` próprios, fora do `pnpm run test`/`test:integration` padrão.
+
+**Recomendação da revisão para depois do merge, registrada e não descartada:** não iniciar o M5 automaticamente — primeiro reabrir a especificação original do M5 (Memória + Economia), separar o que M1-M4 já cobriram do que ainda falta, e só então definir os critérios de aceite do M5 com a revisão externa, mesmo processo usado antes de cada milestone anterior.
+
+**Nada foi integrado em `staging`/`main`. Pendente apenas: autorização explícita do dono para o merge** — nenhum merge foi executado ou proposto durante a sessão autônoma, mesmo com autorização para continuar sem pausar.
