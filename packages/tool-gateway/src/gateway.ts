@@ -1,4 +1,4 @@
-import { type AutonomyController, isPause } from '@escritorio/autonomy';
+import { type AutonomyController, isPause, type QuiescenceGuard } from '@escritorio/autonomy';
 import { releaseReservation, reserveBudget, settleReservation } from '@escritorio/budget';
 import type { Pool } from '@escritorio/database';
 import type { Governor, SpendPurpose } from '@escritorio/governor';
@@ -14,6 +14,8 @@ export interface ToolGatewayDeps {
   budgetPurpose?: SpendPurpose;
   /** M6: quando presente, Emergency Stop engajado pausa a execução (status PAUSED), sem falha e sem reserva. */
   autonomy?: AutonomyController;
+  /** M6: prazo de quiescência depois do Emergency Stop; vencido, a sandbox em curso é encerrada de forma controlada. */
+  quiescence?: QuiescenceGuard;
 }
 
 const DEFAULT_PURPOSE: SpendPurpose = 'DEVELOPMENT_EXTERNAL_SERVICE';
@@ -68,7 +70,17 @@ export class ToolGateway {
     }
 
     try {
-      const result = await sandboxManager.run(request.payload);
+      const guarded = this.deps.quiescence
+        ? await this.deps.quiescence.run((signal) => sandboxManager.run({ ...request.payload, signal }), { operation: 'SANDBOX_RUN', cancelable: true })
+        : undefined;
+      if (guarded?.status === 'EXCEEDED') {
+        // Passou da quiescência: o container foi encerrado. É uma PAUSA, não falha: sem custo, retomada no RELEASE.
+        if (reservation.reservationId) await releaseReservation(pool, reservation.reservationId);
+        const reason = 'Emergency Stop: a execução ultrapassou o prazo de quiescência e foi encerrada';
+        const toolCallId = await this.#recordCall({ request, status: 'PAUSED', error: reason, budgetReservationId: reservation.reservationId });
+        return { status: 'PAUSED', toolCallId, error: reason, pauseGate: 'EMERGENCY_STOP' };
+      }
+      const result = guarded ? guarded.value : await sandboxManager.run(request.payload);
       if (reservation.reservationId) await settleReservation(pool, reservation.reservationId, CODE_EXECUTION_COST_BRL);
       const toolCallId = await this.#recordCall({
         request,

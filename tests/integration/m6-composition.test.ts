@@ -13,7 +13,7 @@ import {
   Scheduler,
   stopReaderFor,
 } from '@escritorio/autonomy';
-import { GitHubConnector } from '@escritorio/cacador';
+import { FakeSourceConnector, GitHubConnector } from '@escritorio/cacador';
 import { type Pool, seedInitialAgents } from '@escritorio/database';
 import { createQueues, createRedisConnection, EventBus, JOB_NAMES, OutboxDispatcher, QUEUE_NAMES } from '@escritorio/events';
 import { Governor, loadConstitution, parseConstitution } from '@escritorio/governor';
@@ -45,13 +45,14 @@ let dispatcher: OutboxDispatcher;
 let worker: ReturnType<typeof createOrchestratorWorker>;
 let server: Server;
 let githubItems: unknown[];
+let prefix: string;
 
 beforeEach(async () => {
   pool = createTestPool();
   await resetDatabase(pool);
   await seedInitialAgents(pool);
 
-  const prefix = uniqueQueuePrefix();
+  prefix = uniqueQueuePrefix();
   producer = createRedisConnection(testRedisUrl(), 'producer', 'm6-composition-producer');
   consumer = createRedisConnection(testRedisUrl(), 'consumer', 'm6-composition-consumer');
   if (producer.status !== 'ready') await new Promise((resolve) => producer.once('ready', resolve));
@@ -268,4 +269,95 @@ describe('M6 — autonomia composta sobre o ciclo real (critério 23)', () => {
     expect(await count('tasks WHERE opportunity_id = $1', [opportunityId])).toBe(1);
     expect(await queues.get(QUEUE_NAMES.ORCHESTRATOR)!.getFailedCount()).toBe(0);
   }, 180_000);
+
+  /**
+   * Critérios 16 e 23(c): a MESMA interrupção controlada do M2 (Worker A preso dentro do passo do
+   * Desenvolvedor e fechado à força; Worker B assume o job stalled relendo o Postgres), agora com
+   * a autonomia no ambiente: o Stop é engajado depois da queda, o Worker B pausa em vez de falhar,
+   * o RELEASE retoma, e o recovery/scheduler depois disso não mudam nada. Continua sendo a
+   * interrupção controlada do M2, não um crash de processo.
+   */
+  it('Worker A cai no meio do ciclo, Stop e RELEASE no meio da retomada: Worker B conclui exatamente uma vez', async () => {
+    await worker.close();
+    const shortLock = { lockDuration: 1_500, stalledInterval: 500 };
+    const connector = new FakeSourceConnector('github', [{ status: 'OK', candidates: [] }]);
+    const hanging = { run: () => new Promise<never>(() => {}) } as unknown as SandboxManager;
+    const connA = createRedisConnection(testRedisUrl(), 'consumer', 'm6-crash-a');
+    const connB = createRedisConnection(testRedisUrl(), 'consumer', 'm6-crash-b');
+    const workerA = createOrchestratorWorker({ connection: connA, prefix, pool, governor: enabled, sandboxManager: hanging, connector, logger, ...shortLock });
+    await workerA.waitUntilReady();
+
+    try {
+      const opportunityId = await startCycle();
+      const task = await waitFor(async () => await taskOf(opportunityId), { timeoutMs: 60_000, label: 'task criada' });
+      await waitFor(
+        async () =>
+          (await count(`events WHERE task_id = $1 AND type = 'AGENT_STATE_CHANGED' AND payload->>'newState' = 'CODING'`, [task.id])) > 0 || undefined,
+        { timeoutMs: 30_000, label: 'Worker A entrar no passo do Desenvolvedor' },
+      );
+      await workerA.close(true); // a queda
+
+      // O ambiente muda antes de o Worker B assumir: Stop engajado.
+      const stop = new EmergencyStopService(pool);
+      await stop.engage('FOUNDER_CLI', 'incidente durante a queda');
+
+      const workerB = createOrchestratorWorker({
+        connection: connB,
+        prefix,
+        pool,
+        governor: enabled,
+        sandboxManager: new SandboxManager(createDockerClient(), logger),
+        connector,
+        logger,
+        ...shortLock,
+      });
+      await workerB.waitUntilReady();
+      try {
+        await new Promise<void>((resolve) => workerB.once('stalled', () => resolve()));
+        await waitFor(async () => ((await count('paused_work WHERE resumed_at IS NULL')) > 0 ? true : undefined), {
+          timeoutMs: 30_000,
+          label: 'Worker B pausar em vez de falhar',
+        });
+        expect((await taskOf(opportunityId))?.status).not.toBe('COMPLETED');
+        expect((await taskOf(opportunityId))?.retry_count).toBe(0);
+
+        const outcome = await releaseAndResume(pool, 'FOUNDER_CLI', 'resolvido', attempts);
+        expect(outcome.resumed).toBeGreaterThan(0);
+        const done = await waitForCompleted(opportunityId);
+        expect(done?.retry_count).toBe(0);
+
+        await waitFor(async () => ((await count('experiences')) > 0 ? true : undefined), { timeoutMs: 30_000, label: 'Experience' });
+        const snapshot = async (): Promise<Record<string, number>> => ({
+          experiences: await count('experiences'),
+          tasks: await count('tasks WHERE opportunity_id = $1', [opportunityId]),
+          events: await count('events'),
+          outbox: await count('outbox'),
+          ...Object.fromEntries(
+            await Promise.all(
+              ['TASK_STARTED', 'IMPLEMENTATION_READY', 'REVIEW_STARTED', 'REVIEW_PASSED', 'TASK_COMPLETED'].map(async (type) => [type, await count(`events WHERE task_id = $1 AND type = $2`, [task.id, type])] as const),
+            ),
+          ),
+        });
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+        const before = await snapshot();
+        expect(before).toMatchObject({ experiences: 1, tasks: 1, TASK_STARTED: 1, IMPLEMENTATION_READY: 1, REVIEW_STARTED: 1, REVIEW_PASSED: 1, TASK_COMPLETED: 1 });
+
+        // Recovery e scheduler depois da conclusão: nada a fazer e nada duplicado.
+        const { recovery, scheduler } = schedulerFor(enabled);
+        const later = new Date(Date.now() + 2 * HOUR);
+        await recovery.sweep(later);
+        await scheduler.runDue(later);
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+        const after = await snapshot();
+        expect(after.experiences).toBe(before.experiences);
+        expect(after.tasks).toBe(before.tasks);
+        for (const type of ['TASK_STARTED', 'IMPLEMENTATION_READY', 'REVIEW_STARTED', 'REVIEW_PASSED', 'TASK_COMPLETED'] as const) expect(after[type]).toBe(1);
+      } finally {
+        await workerB.close();
+        await connB.quit();
+      }
+    } finally {
+      await connA.quit();
+    }
+  }, 240_000);
 });

@@ -1,5 +1,5 @@
 import { reserveBudget, releaseReservation, settleReservation } from '@escritorio/budget';
-import { type AutonomyController, isPause } from '@escritorio/autonomy';
+import { type AutonomyController, isPause, type QuiescenceGuard } from '@escritorio/autonomy';
 import type { Pool } from '@escritorio/database';
 import type { Governor, SpendPurpose } from '@escritorio/governor';
 import { describeError, type Logger } from '@escritorio/shared';
@@ -16,6 +16,8 @@ export interface AiGatewayDeps {
   budgetPurpose?: SpendPurpose;
   /** M6: quando presente, Emergency Stop engajado pausa a chamada (status PAUSED), sem falha e sem custo. */
   autonomy?: AutonomyController;
+  /** M6: chamada de IA não é cancelável; passado o prazo depois do Stop, o resultado é descartado e nada progride. */
+  quiescence?: QuiescenceGuard;
 }
 
 export type AiCompletionStatus = 'SUCCESS' | 'ERROR' | 'BLOCKED' | 'PAUSED';
@@ -100,7 +102,22 @@ export class AiGateway {
 
     const adapter = router.resolve();
     try {
-      const result = await adapter.complete(request);
+      const guarded = this.deps.quiescence
+        ? await this.deps.quiescence.run(() => adapter.complete(request), { operation: 'AI_COMPLETION', cancelable: false })
+        : undefined;
+      if (guarded?.status === 'EXCEEDED') {
+        if (reservation.reservationId) await releaseReservation(pool, reservation.reservationId);
+        const reason = 'Emergency Stop: a chamada de IA ultrapassou o prazo de quiescência e o resultado foi descartado';
+        const paused = await this.#recordCall({
+          request,
+          mode,
+          status: 'PAUSED',
+          error: reason,
+          logicalCallId: `${logicalCallId}:paused:${crypto.randomUUID()}`,
+        });
+        return { ...paused, pauseGate: 'EMERGENCY_STOP' };
+      }
+      const result = guarded ? guarded.value : await adapter.complete(request);
       if (reservation.reservationId) await settleReservation(pool, reservation.reservationId, estimate);
       return this.#recordCall({
         request,

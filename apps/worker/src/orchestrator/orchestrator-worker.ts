@@ -6,6 +6,7 @@ import {
   breakerPolicyFrom,
   CircuitBreakerStore,
   createJobGate,
+  QuiescenceGuard,
   stopReaderFor,
   WorkPausedError,
 } from '@escritorio/autonomy';
@@ -81,11 +82,12 @@ export function createOrchestratorWorker({
   const controller = new AutonomyController({ governor, stop: stopReaderFor(pool), breakers });
   const jobGate = createJobGate({ pool, controller, sourceKey: connector.source });
 
-  const toolGateway = new ToolGateway({ pool, governor, sandboxManager, logger, autonomy: controller });
+  const quiescence = new QuiescenceGuard({ db: pool, stop: stopReaderFor(pool), timeoutMs: governor.autonomy.EMERGENCY_QUIESCENCE_TIMEOUT_SECONDS * 1000 });
+  const toolGateway = new ToolGateway({ pool, governor, sandboxManager, logger, autonomy: controller, quiescence });
   // M3, critério 13: o Diretor consulta o AI Gateway de verdade (AI_MODE
   // sempre mock nesta fase — ver docs/M3-PLANO.md) só para uma nota de
   // auditoria; a decisão em si continua vindo de decide()/authorizeExecution().
-  const aiGateway = new AiGateway({ pool, governor, router: new ModelRouter({ mode: 'mock' }), logger, autonomy: controller });
+  const aiGateway = new AiGateway({ pool, governor, router: new ModelRouter({ mode: 'mock' }), logger, autonomy: controller, quiescence });
   const handleDecideOpportunity = createOpportunityHandler({ pool, governor, aiGateway, logger });
   const handleDevelopTask = createDevelopmentHandler({ pool, governor, toolGateway, logger, waitSlotDelayMs });
   const handleReviewTask = createReviewHandler({ pool, governor, toolGateway, logger });
