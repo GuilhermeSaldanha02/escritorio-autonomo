@@ -75,6 +75,11 @@ export class Governor {
     return this.#constitution.limites;
   }
 
+  /** Parâmetros de autonomia do M6. Só leitura: nenhum método do Governor os altera. */
+  get autonomy(): Readonly<Constitution['autonomia']> {
+    return this.#constitution.autonomia;
+  }
+
   evaluate(action: GovernedAction): GovernorDecision {
     switch (action.kind) {
       case 'CAPABILITY':

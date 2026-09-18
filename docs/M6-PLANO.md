@@ -135,6 +135,18 @@ SLEEP -> cooldown expirou? -> existe DEMANDA ELEGÍVEL para o papel/capacidade d
 - **`ACTIVE → SLEEP` usa janelas ruins consecutivas**, não um percentual mágico único, o que casa com a histerese exigida.
 - **Fora do M6:** `SLEEP → ARCHIVED`, criação de agente (Agent Factory) e remoção.
 
+## Esclarecimentos de implementação (fechados antes do código)
+
+Não mudam o escopo nem os critérios; resolvem pontos que a implementação exige e que o plano deixava implícitos.
+
+1. **Pausa nunca vira falha, inclusive nos dados.** Uma tentativa barrada por Emergency Stop ou circuito aberto é gravada com um status próprio, `PAUSED`, em `tool_calls` e `model_calls` (a migration acrescenta o valor ao `CHECK`). Gravá-la como `BLOCKED` faria a `Experience` acusar `TOOL_CALL_BLOCKED`, que alimenta o breaker do agente e fecha o ciclo "circuito aberto, agente parado, performance piora, `SLEEP`" que o critério 18 proíbe. A derivação de `Experience` passa a contar como falha só `ERROR` e `BLOCKED`.
+2. **O controlador compõe o Governor; não vive dentro dele.** `Governor.evaluate()` é síncrono e puro, e Stop e breaker são leituras assíncronas. O portão é um módulo próprio cujo **único caminho até "permitido" é `return governor.evaluate(action)`**. Assim o critério 21 vale por construção (decisão autônoma permitida implica decisão manual permitida). `AUTONOMY_ENABLED` só vale para o que **nasce do Scheduler** (`origin: SCHEDULED`); trabalho já em cadeia (decidir, desenvolver, revisar) segue mesmo que a autonomia seja desligada no meio, e o Stop e o breaker valem para todo trabalho.
+3. **Três pontos de estrangulamento, não cinco handlers:** o `switch (job.name)` do worker do orquestrador, o `ToolGateway.execute()` e o `AiGateway`, mais o `LifecycleService`. A lógica da ordem de decisão existe uma única vez.
+4. **Trabalho pausado e retomada.** Um job barrado por pausa **retorna normalmente** (lançar consumiria uma tentativa do BullMQ, o que o critério 13 proíbe) e grava uma linha idempotente em `paused_work` (`job_name` + `entity_id`, `UNIQUE`). O `RELEASE` re-despacha essas linhas pelo outbox, com identidade idempotente, e o recovery cobre o caso do crash. Sem re-enfileirar enquanto o Stop está engajado, não há tempestade de retentativas atrasadas.
+5. **Fail-safe é negar, não lançar.** Falha ao ler o estado do Stop devolve `UNVERIFIABLE` e o portão nega. Se subisse como exceção, seria confundida com `TECHNICAL_RETRY` e o fail-safe viraria fail-open sem ninguém notar.
+6. **Circuit breaker append-only, "a última linha vale".** Sem coluna de estado mutável (o mesmo erro que a 0010 quase teve): o estado é a dobra dos eventos do escopo (`FAILURE`, `SUCCESS`, `OPENED`, `HALF_OPEN`, `CLOSED`), com trigger `append-only` e a auditoria que o plano pede.
+7. **Só a CLI e a API chamam `engage`/`release`.** Isso é verificado por um teste de arquitetura que varre o código-fonte e falha se qualquer outro módulo chamar esses métodos, e o mesmo vale para escrever em `agents.lifecycle_status` fora do `LifecycleService`.
+
 ## Fora do M6 (fronteira)
 
 Agent Factory, `ARCHIVED` automático, dinheiro real, auto-spend, Office Projection e WebSocket (M7), embedding real, Cost Accounting. `AlgoraEvidenceEnricher` e `CONFLICTING` seguem como backlog do M4 sem milestone atribuído. `AI_MODE` continua `mock` e o custo externo R$0.

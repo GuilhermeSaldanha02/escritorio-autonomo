@@ -4,9 +4,12 @@ import { EventStore } from '@escritorio/events';
 import { createTestPool, resetDatabase } from './support.js';
 
 const TABLES = [
+  'agent_lifecycle_transitions',
   'agent_performance',
   'agents',
   'budget_reservations',
+  'circuit_breaker_events',
+  'emergency_stop_events',
   'events',
   'experiences',
   'financial_ledger',
@@ -14,7 +17,9 @@ const TABLES = [
   'model_calls',
   'opportunities',
   'outbox',
+  'paused_work',
   'payment_evidence',
+  'scheduled_executions',
   'tasks',
   'tool_calls',
 ];
@@ -46,6 +51,11 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0013_autonomia']);
+    for (const table of ['emergency_stop_events', 'scheduled_executions', 'circuit_breaker_events', 'agent_lifecycle_transitions', 'paused_work']) {
+      expect(await publicTables()).not.toContain(table);
+    }
+
     expect(await migrateDown(pool, 1)).toEqual(['0012_memories_scope_trust']);
     const { rows: memoryColumns } = await pool.query(
       `SELECT column_name FROM information_schema.columns WHERE table_name = 'memories' AND column_name IN ('trust_level', 'scope_task_id')`,
@@ -101,6 +111,7 @@ describe('migrations', () => {
       '0010_financial_ledger_economy',
       '0011_memoria_performance',
       '0012_memories_scope_trust',
+      '0013_autonomia',
     ]);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
@@ -117,6 +128,7 @@ describe('migrations', () => {
         '0010_financial_ledger_economy',
         '0011_memoria_performance',
         '0012_memories_scope_trust',
+        '0013_autonomia',
       ],
       pending: [],
     });
