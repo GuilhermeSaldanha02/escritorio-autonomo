@@ -2,7 +2,7 @@
 
 - **Consulta prévia (ChatGPT, 2026-09-18):** a especificação só tem uma linha de roadmap para o M5 ("pgvector, experiências, performance, ledger e reconciliação"), sem critérios de aceite detalhados. O escopo, a arquitetura e os 20 critérios abaixo vêm dessa consulta — feita depois de reabrir a especificação original e mapear o que M1-M4 já cobrem, exatamente como recomendado ao fechar o M4.
 - **Segunda rodada (mesmo dia): plano aprovado, condicionado a 3 ajustes.** Depois de escrever a primeira versão deste documento, a revisão externa leu o arquivo completo e aprovou a direção, com 3 ajustes já incorporados abaixo: (1) política de arredondamento do split vira regra normativa, não exemplo; (2) `financial_ledger` ganha `ledger_scope` (`SIMULATION`/`REAL`) — dinheiro simulado nunca soma em caixa/receita real, nem hoje nem quando o M6 tomar decisões autônomas com base em saldo; (3) o `DeterministicEmbeddingProvider` prova infraestrutura vetorial, nunca qualidade semântica — o relatório de fechamento não pode alegar "memória semântica funcionando". Veredito literal: *"M5-PLANO — APROVADO COM 3 AJUSTES ANTES DO CÓDIGO [...] Com as três pequenas alterações [...] o plano fica APROVADO PARA IMPLEMENTAÇÃO."*
-- **Este plano ainda não foi implementado.** Próximo passo: autorização explícita do dono para começar o código — mesmo processo do M2, M3 e M4.
+- **Implementação em andamento** na branch `feat/m5-memoria-economia`, autorizada pelo dono. Critério 20 (E2E determinístico das duas trilhas) **ainda não foi feito**: foi adiado por decisão do dono para poupar custo de execução, então o M5 não pode ser dado como completo nem mergeado antes de ele existir ou de o dono aceitar a lacuna explicitamente, com revisão externa.
 
 ## Objetivo
 
@@ -127,6 +127,25 @@ M5 é conservador de propósito: o reconciliador produz `RECONCILIATION_OK`/`REC
 - split ausente, duplicado, ou cuja soma não bate com a receita;
 - lançamento de ledger sem origem (órfão);
 - confirmação de pagamento duplicada (posting não-idempotente).
+
+## Fronteira com o Cost Accounting (critério 19)
+
+Custo técnico e fato econômico são camadas diferentes e **nenhum código do M5 transforma um no outro**:
+
+| Camada | Tabelas | O que representa |
+|---|---|---|
+| Telemetria técnica | `model_calls`, `tool_calls` | O que cada chamada custou e quanto demorou. Em `AI_MODE=mock` o custo é sempre R$0 (constraint no banco). |
+| Autorização de gasto | `budget_reservations` | Quanto o Governor deixou gastar por finalidade. Não é gasto realizado. |
+| Fato econômico | `financial_ledger` | Receita, subsídio e custo operacional **comprovados**, append-only, com `ledger_scope`. |
+
+**Prova mecânica:** o teste do ciclo completo (`tests/integration/orchestrator.test.ts`) roda a esteira inteira, com chamadas de IA e de ferramenta registradas, e afirma que `financial_ledger` continua vazio. Se alguém ligar `model_calls` ao ledger sem passar por esta fronteira, esse teste falha.
+
+**O que um Cost Accounting futuro (fora do M5, sem milestone atribuído) precisaria respeitar** para transformar custo real em lançamento:
+
+- Só lê `model_calls`/`tool_calls` com `mode <> 'mock'` e `cost_brl > 0` — custo comprovado, nunca estimativa nem reserva.
+- Lança `OPERATING_COST` (o tipo já existe no ledger, com `model_call_id` e `task_id` opcionais desde o M1), sempre em escopo explícito, com `idempotency_key` derivada da chamada de origem (por exemplo `cost:model_call:<id>`): reprocessar nunca duplica.
+- É um serviço próprio e idempotente, como `confirmPayment`, e não um efeito colateral do AI Gateway ou do Tool Gateway.
+- Erro contábil se corrige por lançamento de compensação, nunca reescrevendo histórico.
 
 ## Critérios de aceite do M5
 

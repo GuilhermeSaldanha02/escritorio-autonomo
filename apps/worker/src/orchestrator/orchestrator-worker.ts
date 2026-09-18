@@ -10,6 +10,7 @@ import { ToolGateway } from '@escritorio/tool-gateway';
 import { describeError, type Logger } from '@escritorio/shared';
 import { createDevelopmentHandler } from './development-handler.js';
 import { createDiscoveryHandler } from './discovery-handler.js';
+import { createExperienceHandler } from './experience-handler.js';
 import { createOpportunityHandler } from './opportunity-handler.js';
 import { createReviewHandler } from './review-handler.js';
 
@@ -74,6 +75,7 @@ export function createOrchestratorWorker({
   const handleDevelopTask = createDevelopmentHandler({ pool, governor, toolGateway, logger, waitSlotDelayMs });
   const handleReviewTask = createReviewHandler({ pool, governor, toolGateway, logger });
   const handleDiscoverOpportunities = createDiscoveryHandler({ pool, bus: new EventBus(pool), governor, connector, logger });
+  const handleRecordExperience = createExperienceHandler({ pool, logger });
 
   const worker = new Worker(
     QUEUE_NAMES.ORCHESTRATOR,
@@ -87,6 +89,8 @@ export function createOrchestratorWorker({
           return handleReviewTask(job);
         case JOB_NAMES.DISCOVER_OPPORTUNITIES:
           return handleDiscoverOpportunities(job);
+        case JOB_NAMES.RECORD_EXPERIENCE:
+          return handleRecordExperience(job);
         default:
           throw new UnrecoverableError(`Job desconhecido na fila ${QUEUE_NAMES.ORCHESTRATOR}: ${job.name}`);
       }

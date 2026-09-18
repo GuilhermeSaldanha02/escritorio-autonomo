@@ -139,6 +139,17 @@ async function eventCount(taskId: string, type: string): Promise<number> {
   return Number(rows[0]?.count ?? 0);
 }
 
+async function experienceForTask(taskId: string) {
+  const { rows } = await pool.query<{
+    outcome: string;
+    review_result: string | null;
+    agent_id: string;
+    attempt_count: number;
+    failure_codes: string[];
+  }>(`SELECT outcome, review_result, agent_id, attempt_count, failure_codes FROM experiences WHERE task_id = $1`, [taskId]);
+  return rows;
+}
+
 describe('Orquestrador — ciclo completo', () => {
   it(
     'cenário feliz: oportunidade aprovada percorre até COMPLETED, com Desenvolvedor e Revisor em sandboxes distintas',
@@ -159,6 +170,17 @@ describe('Orquestrador — ciclo completo', () => {
       );
 
       expect(await opportunityStatus(opportunityId)).toBe('SUBMITTED');
+
+      // M5, critério 2: a conclusão da task produziu uma Experience, de evidência já persistida (sem IA).
+      const experiences = await waitFor(
+        async () => {
+          const found = await experienceForTask(task.id);
+          return found.length > 0 ? found : undefined;
+        },
+        { timeoutMs: 20_000, label: 'Experience da task concluída' },
+      );
+      expect(experiences).toHaveLength(1);
+      expect(experiences[0]).toMatchObject({ outcome: 'SUCCESS', review_result: 'PASSED', agent_id: 'DESENVOLVEDOR-001', attempt_count: 1 });
 
       // Eventos-chave da esteira, todos persistidos em ordem (critério 4).
       for (const type of ['TASK_CREATED', 'TASK_ASSIGNED', 'TASK_STARTED', 'IMPLEMENTATION_READY', 'REVIEW_STARTED', 'REVIEW_PASSED']) {
@@ -198,6 +220,11 @@ describe('Orquestrador — ciclo completo', () => {
       expect(modelCallRows).toHaveLength(1);
       expect(modelCallRows[0]).toMatchObject({ mode: 'mock', status: 'SUCCESS' });
       expect(Number(modelCallRows[0]?.cost_brl)).toBe(0);
+
+      // M5, critério 19: custo técnico (model_calls/tool_calls) nunca vira lançamento sozinho.
+      // O ciclo inteiro registrou chamadas e o ledger econômico continua vazio.
+      const { rows: ledgerRows } = await pool.query<{ n: string }>('SELECT count(*)::text AS n FROM financial_ledger');
+      expect(Number(ledgerRows[0]?.n)).toBe(0);
     },
     90_000,
   );
@@ -254,7 +281,8 @@ describe('Orquestrador — retry e bloqueio (critério 6)', () => {
     );
     const opportunityId = oppRows[0]!.id;
     const { rows: taskRows } = await pool.query<{ id: string }>(
-      `INSERT INTO tasks (opportunity_id, objective, status, retry_count) VALUES ($1, 'objetivo forjado', 'IMPLEMENTATION_READY', $2) RETURNING id`,
+      `INSERT INTO tasks (opportunity_id, objective, status, retry_count, assigned_agent_id)
+       VALUES ($1, 'objetivo forjado', 'IMPLEMENTATION_READY', $2, 'DESENVOLVEDOR-001') RETURNING id`,
       [opportunityId, retryCount],
     );
     const taskId = taskRows[0]!.id;
@@ -357,6 +385,18 @@ describe('Orquestrador — retry e bloqueio (critério 6)', () => {
 
     expect(await eventCount(taskId, 'TASK_BLOCKED')).toBeGreaterThanOrEqual(1);
     expect(await opportunityStatus(opportunityId)).toBe('FAILED');
+
+    // M5, critério 2: a falha da task também produz uma Experience (FAILURE, sem depender de IA).
+    const experiences = await waitFor(
+      async () => {
+        const found = await experienceForTask(taskId);
+        return found.length > 0 ? found : undefined;
+      },
+      { timeoutMs: 20_000, label: 'Experience da task bloqueada' },
+    );
+    expect(experiences).toHaveLength(1);
+    expect(experiences[0]).toMatchObject({ outcome: 'FAILURE', attempt_count: governor.limits.MAX_TASK_RETRIES + 1 });
+    expect(experiences[0]!.failure_codes).toContain('TASK_BLOCKED');
   }, 30_000);
 });
 

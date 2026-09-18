@@ -13,6 +13,8 @@ export const JOB_NAMES = {
   DEVELOP_TASK: 'develop-task',
   REVIEW_TASK: 'review-task',
   DISCOVER_OPPORTUNITIES: 'discover-opportunities',
+  // M5: uma Experience por task terminal, enfileirada na mesma transação que a encerra.
+  RECORD_EXPERIENCE: 'record-experience',
 } as const;
 
 export const diagnosticJobSchema = z
@@ -33,6 +35,9 @@ export type DecideOpportunityJobData = z.infer<typeof decideOpportunityJobSchema
 
 export const developTaskJobSchema = z.object({ taskId: z.uuid(), correlationId: z.uuid() }).strict();
 export type DevelopTaskJobData = z.infer<typeof developTaskJobSchema>;
+
+export const recordExperienceJobSchema = z.object({ taskId: z.uuid(), correlationId: z.uuid() }).strict();
+export type RecordExperienceJobData = z.infer<typeof recordExperienceJobSchema>;
 
 export const reviewTaskJobSchema = z.object({ taskId: z.uuid(), correlationId: z.uuid() }).strict();
 export type ReviewTaskJobData = z.infer<typeof reviewTaskJobSchema>;

@@ -3,6 +3,7 @@ import { implementationReadySchema, reviewInSandbox, type ImplementationReady } 
 import { type Pool, withTransaction } from '@escritorio/database';
 import {
   JOB_NAMES,
+  type JobDispatch,
   type ReviewTaskJobData,
   QUEUE_NAMES,
   transitionOpportunityIn,
@@ -30,6 +31,17 @@ async function loadTask(pool: Pool, id: string): Promise<TaskRow | undefined> {
     [id],
   );
   return rows[0];
+}
+
+/** Task terminal (COMPLETED ou BLOCKED) → uma Experience, enfileirada na mesma transação que a encerra. */
+function recordExperienceDispatch(taskId: string, correlationId: string, attempts: number): JobDispatch {
+  return {
+    queue: QUEUE_NAMES.ORCHESTRATOR,
+    jobName: JOB_NAMES.RECORD_EXPERIENCE,
+    data: () => ({ taskId, correlationId }),
+    attempts,
+    jobId: `record-experience-${taskId}`,
+  };
 }
 
 const implementationEventPayloadSchema = implementationReadySchema.extend({ developer_sandbox_id: z.string() });
@@ -96,6 +108,7 @@ export function createReviewHandler({ pool, governor, toolGateway, logger }: Rev
             opportunityId: opportunityId ?? undefined,
             correlationId,
           },
+          dispatch: recordExperienceDispatch(taskId, correlationId, governor.limits.MAX_TASK_RETRIES + 1),
         });
         if (opportunityId) {
           await transitionOpportunityIn(tx, {
@@ -159,6 +172,7 @@ export function createReviewHandler({ pool, governor, toolGateway, logger }: Rev
           opportunityId: opportunityId ?? undefined,
           correlationId,
         },
+        dispatch: recordExperienceDispatch(taskId, correlationId, maxRetries + 1),
       });
       if (opportunityId) {
         await transitionOpportunityIn(tx, {
