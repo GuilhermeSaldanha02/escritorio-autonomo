@@ -34,7 +34,8 @@ export function classifyRetry(cause: RetryCause): RetryClass {
     case 'SLOT_UNAVAILABLE':
       return 'CAPACITY_WAIT';
     case 'GATE':
-      // Emergency Stop, ilegível ou autonomia desligada são pausas globais; circuito é local ao escopo.
+      // Agente dormindo é capacidade indisponível; circuito é local ao escopo; o resto (Stop, ilegível) são pausas globais.
+      if (cause.gate === 'AGENT_SLEEPING') return 'CAPACITY_WAIT';
       return CIRCUIT_GATES.has(cause.gate) ? 'CIRCUIT_BLOCK' : 'EMERGENCY_PAUSE';
     case 'ERROR':
       return 'TECHNICAL_RETRY';

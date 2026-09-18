@@ -16,6 +16,7 @@ describe('classifyRetry', () => {
     ['Stop impossível de verificar', { kind: 'GATE', gate: 'STOP_UNVERIFIABLE' }, 'EMERGENCY_PAUSE'],
     ['circuito aberto', { kind: 'GATE', gate: 'CIRCUIT_OPEN' }, 'CIRCUIT_BLOCK'],
     ['circuito ilegível', { kind: 'GATE', gate: 'CIRCUIT_UNVERIFIABLE' }, 'CIRCUIT_BLOCK'],
+    ['agente em SLEEP', { kind: 'GATE', gate: 'AGENT_SLEEPING' }, 'CAPACITY_WAIT'],
     ['erro de infraestrutura', { kind: 'ERROR', error: new Error('ECONNRESET') }, 'TECHNICAL_RETRY'],
   ];
 

@@ -56,6 +56,25 @@ export function createJobGate({ pool, controller, sourceKey }: JobGateDeps) {
     return [];
   }
 
+  /** Agente que executa o job. O `SLEEP` dele pausa o trabalho: um agente dormindo não pega trabalho. */
+  async function agentFor(job: JobLike): Promise<string | undefined> {
+    switch (job.name) {
+      case JOB_NAMES.DEVELOP_TASK: {
+        if (typeof job.data.taskId !== 'string') return DEVELOPER_AGENT;
+        const { rows } = await pool.query<{ assigned_agent_id: string | null }>('SELECT assigned_agent_id FROM tasks WHERE id = $1', [job.data.taskId]);
+        return rows[0]?.assigned_agent_id ?? DEVELOPER_AGENT;
+      }
+      case JOB_NAMES.REVIEW_TASK:
+        return 'REVISOR-001';
+      case JOB_NAMES.DECIDE_OPPORTUNITY:
+        return 'DIRETOR-001';
+      case JOB_NAMES.DISCOVER_OPPORTUNITIES:
+        return 'CACADOR-001';
+      default:
+        return undefined;
+    }
+  }
+
   /** Grava o trabalho como pausado (idempotente) e emite WORK_PAUSED só numa pausa nova. */
   async function pause(job: JobLike, gate: string, reason: string): Promise<void> {
     if (!isResumableJob(job.name)) return;
@@ -84,5 +103,17 @@ export function createJobGate({ pool, controller, sourceKey }: JobGateDeps) {
     return { admitted: false, gate: decision.gate, reason: decision.reason };
   }
 
-  return { admit, pause };
+  async function admitWithLifecycle(job: JobLike): Promise<JobGateResult> {
+    const decision = await admit(job);
+    if (!decision.admitted) return decision;
+    const agentId = await agentFor(job);
+    if (!agentId) return decision;
+    const { rows } = await pool.query<{ lifecycle_status: string }>('SELECT lifecycle_status FROM agents WHERE id = $1', [agentId]);
+    if (rows[0]?.lifecycle_status !== 'SLEEP') return decision;
+    const reason = `Agente ${agentId} está em SLEEP: o trabalho espera até ele acordar.`;
+    await pause(job, 'AGENT_SLEEPING', reason);
+    return { admitted: false, gate: 'AGENT_SLEEPING', reason };
+  }
+
+  return { admit: admitWithLifecycle, pause };
 }

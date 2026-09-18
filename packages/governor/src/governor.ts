@@ -48,11 +48,20 @@ export type GovernedAction =
     }
   | { kind: 'TASK_RETRY'; /** Número da nova tentativa extra (1 = primeiro retry). */ retryNumber: number }
   | { kind: 'TASK_START'; runningTasks: number }
-  | { kind: 'TOOL_CALL'; tool: string };
+  | { kind: 'TOOL_CALL'; tool: string }
+  /** M6: transição de lifecycle de agente. O Governor só conhece as três transições automáticas do M6. */
+  | { kind: 'AGENT_LIFECYCLE_TRANSITION'; from: string; to: string };
 
 export type GovernorDecision =
   | { allowed: true }
   | { allowed: false; rule: string; reason: string };
+
+/** Transições de lifecycle que o Governor autoriza no M6 (ARCHIVED nunca). */
+const LIFECYCLE_TRANSITIONS_M6: ReadonlyArray<readonly [string, string]> = [
+  ['PROBATION', 'ACTIVE'],
+  ['ACTIVE', 'SLEEP'],
+  ['SLEEP', 'ACTIVE'],
+];
 
 const allow: GovernorDecision = Object.freeze({ allowed: true });
 
@@ -92,7 +101,21 @@ export class Governor {
         return this.#evaluateStart(action.runningTasks);
       case 'TOOL_CALL':
         return this.#evaluateToolCall(action.tool);
+      case 'AGENT_LIFECYCLE_TRANSITION':
+        return this.#evaluateLifecycleTransition(action.from, action.to);
     }
+  }
+
+  /**
+   * As únicas transições que o M6 autoriza: PROBATION -> ACTIVE, ACTIVE -> SLEEP e
+   * SLEEP -> ACTIVE. ARCHIVED (origem ou destino), criação e remoção de agente ficam fora:
+   * dependem de verba de expansão e receita real (M8), e histórico nunca é apagado.
+   */
+  #evaluateLifecycleTransition(from: string, to: string): GovernorDecision {
+    if (!LIFECYCLE_TRANSITIONS_M6.some(([f, t]) => f === from && t === to)) {
+      return deny('LIFECYCLE_TRANSITION_NOT_ALLOWED', `Transição de lifecycle não autorizada no M6: ${from} -> ${to}.`);
+    }
+    return allow;
   }
 
   #evaluateToolCall(tool: string): GovernorDecision {
