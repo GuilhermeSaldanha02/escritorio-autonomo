@@ -1,7 +1,7 @@
 # Relatório — Milestone 3: Inteligência Governada
 
 - **Data:** 2026-09-17 · **Agente:** Claude (Sonnet 5) · **Branch:** `feat/m3-inteligencia` (saindo de `staging`)
-- **Estado:** implementado e validado localmente, todos os 16 critérios de aceite têm prova reexecutável. **Aguardando revisão externa (ChatGPT) e autorização do dono. Nada integrado em `staging`/`main`.**
+- **Estado:** implementado, validado localmente e **aprovado pela revisão externa** ("M3 — APROVADO PARA MERGE ✅", ChatGPT, 2026-09-17). **Aguardando autorização do dono para o merge. Nada integrado em `staging`/`main`.**
 - **Autorização de início:** dono, 2026-09-17, logo após o M2 ser aprovado pela revisão externa e integrado em `staging`/`main` (tag `m2-primeiro-ciclo`).
 - **Consulta prévia (ChatGPT, 2026-09-17):** a especificação só tem uma linha de roadmap para o M3 ("AI Gateway, Model Router, Tool Gateway, custos, budgets, Governor completo"), sem critérios de aceite detalhados como o M1 teve. O escopo, a ordem de implementação e os 16 critérios abaixo vêm dessa consulta — registrada por completo em `docs/M3-PLANO.md`.
 - **Repositório:** `GuilhermeSaldanha02/escritorio-autonomo` (privado, GitHub).
@@ -80,7 +80,9 @@ ca3872a docs: Registra inicio do M3 no ESTADO ATUAL
 
 **Por que não é uma duplicação crítica:** o orçamento em si é protegido — `reserveBudget` usa uma `idempotencyKey` derivada do `correlationId`, então mesmo com duas chamadas ao AI Gateway, a segunda reserva vira `ALREADY_RESERVED` (não reserva duas vezes, não gasta duas vezes). O que duplicaria é só o registro de auditoria (`model_calls`), não um efeito financeiro ou de negócio.
 
-**Por que não foi corrigido agora:** exigiria mover a chamada ao AI Gateway para dentro da mesma transação atômica da transição de estado (como o Orquestrador já faz para eventos), o que effectivamente significaria fazer uma chamada de rede (mesmo que mock, hoje) dentro de uma transação de banco aberta — um padrão que o próprio M2 evitou deliberadamente em outros pontos. Registrado como item para o M3-PRIMEIRO-CICLO ou revisão futura, não escondido sob um ✅.
+**Por que não foi corrigido agora:** exigiria mover a chamada ao AI Gateway para dentro da mesma transação atômica da transição de estado (como o Orquestrador já faz para eventos), o que effectivamente significaria fazer uma chamada de rede (mesmo que mock, hoje) dentro de uma transação de banco aberta — um padrão que o próprio M2 evitou deliberadamente em outros pontos. Registrado como item para revisão futura, não escondido sob um ✅.
+
+**Veredito da revisão externa sobre este ponto, com uma recomendação concreta para o futuro:** *"concordo que a solução não é colocar uma chamada futura de rede dentro da transação PostgreSQL apenas para obter atomicidade [...] Isso será ainda mais importante antes de ativarmos API paga real, porque hoje duplicar model_calls é basicamente ruído de auditoria; amanhã uma duplicação pode significar duas requisições externas faturáveis."* Recomendação registrada para antes de qualquer provider pago real: um `logical_ai_call_id` (ex.: `ai:DIRETOR-001:<correlationId>:approval-summary`) com `UNIQUE`, garantindo que duas entregas do mesmo job do BullMQ resolvam para a mesma operação lógica — idempotência da própria chamada/auditoria, não uma transação aberta durante I/O externo. Não bloqueia o M3.
 
 ## 6. Dependências adicionadas no M3 e por quê
 
@@ -102,6 +104,10 @@ Todo o M3 rodou com `AI_MODE=mock`. Os testes de `local`/`api` usam um servidor 
 
 ## 9. Situação e próximo passo
 
-M3 implementado e validado localmente — todos os 7 passos e os 16 critérios de aceite têm evidência reexecutável, incluindo mutação confirmada nas três propriedades mais delicadas (reserva de orçamento sob concorrência, bloqueio antes da execução no Tool Gateway, e o ciclo E2E real do critério 13). Uma limitação não crítica está registrada com honestidade na seção 5.
+M3 implementado, validado localmente e **aprovado pela revisão externa**. Todos os 7 passos e os 16 critérios de aceite têm evidência reexecutável, incluindo mutação confirmada nas três propriedades mais delicadas (reserva de orçamento sob concorrência, bloqueio antes da execução no Tool Gateway, e o ciclo E2E real do critério 13). A limitação não crítica da seção 5 foi revisada e aceita como não-bloqueante, com uma recomendação registrada para antes de qualquer provider pago real (idempotência via `logical_ai_call_id`).
 
-**Nada foi integrado em `staging`/`main`. ** Este relatório, junto com o ZIP do commit atual (`git archive`, sem `.env`/`node_modules`/`dist`), vai para a mesma conversa do ChatGPT usada nas revisões do M1/M2, para o veredito técnico antes de qualquer merge ou autorização de avançar ao M4.
+**Veredito completo da revisão externa (ChatGPT, 2026-09-17):** *"M3 — APROVADO PARA MERGE ✅. Considero o M3 — Inteligência Governada tecnicamente concluído e pronto para ser levado ao dono para autorização de merge em staging e depois main."*
+
+A mesma revisão recomendou, para o M4 (Caçador Real, próximo da especificação): não começar a implementação diretamente — M4 traz fontes públicas reais, termos de plataforma, deduplicação, verificação de recompensa, prazos, confiança e potencial conteúdo externo malicioso, "uma fronteira de segurança bem diferente de M1–M3". Recomendação: desenhar os critérios de aceite do M4 com a revisão externa antes de qualquer código, mesmo padrão já seguido antes do M2 e do M3.
+
+**Nada foi integrado em `staging`/`main` ainda — falta a autorização explícita do dono para o merge.** M4 não iniciado, e só deve começar com nova autorização e um desenho de critérios de aceite próprio, dada a mudança de risco que a revisão externa apontou.
