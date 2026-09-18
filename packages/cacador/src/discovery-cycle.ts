@@ -76,6 +76,13 @@ export async function runDiscoveryCycle(deps: DiscoveryCycleDeps): Promise<Disco
       rewardCurrency: evidence.rewardCurrency,
       eligibilityStatus: evidence.eligibilityStatus,
       automationPolicyStatus: evidence.automationPolicyStatus,
+      // Compatibilidade com o contrato legado M1-M3 (decide() do Diretor lê
+      // estas duas colunas, não automationPolicyStatus): omitir deixaria NULL,
+      // e opportunity-handler.ts trata NULL como INVALID antes do Diretor ver
+      // a oportunidade. Mesma regra de "UNKNOWN nunca é permissão": só ALLOWED
+      // vira true.
+      aiAllowed: evidence.automationPolicyStatus === 'ALLOWED',
+      automationAllowed: evidence.automationPolicyStatus === 'ALLOWED',
       trustLevel: normalized.trustLevel,
       rawExternalContent: normalized.rawExternalContent,
       normalizedContent: normalized.normalizedContent,

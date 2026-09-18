@@ -18,9 +18,11 @@
   "dependencies": {
     "@escritorio/agents": "workspace:*",
     "@escritorio/ai": "workspace:*",
+    "@escritorio/cacador": "workspace:*",
     "@escritorio/database": "workspace:*",
     "@escritorio/events": "workspace:*",
     "@escritorio/governor": "workspace:*",
+    "@escritorio/http-safe": "workspace:*",
     "@escritorio/shared": "workspace:*",
     "@escritorio/tool-gateway": "workspace:*",
     "@escritorio/tools": "workspace:*",

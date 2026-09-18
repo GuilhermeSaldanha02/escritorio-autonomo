@@ -1,4 +1,6 @@
+import { GitHubConnector } from '@escritorio/cacador';
 import { createPool } from '@escritorio/database';
+import { SafeHttpClient } from '@escritorio/http-safe';
 import { createDockerClient, SandboxManager } from '@escritorio/tools';
 import { createQueues, createRedisConnection, EventStore, OutboxDispatcher } from '@escritorio/events';
 import { Governor, loadConstitution } from '@escritorio/governor';
@@ -44,12 +46,19 @@ async function main(): Promise<void> {
     logger,
   });
   const sandboxManager = new SandboxManager(createDockerClient(), logger);
+  // M4: fonte real do Caçador (docs/M4-PLANO.md — GitHub, não Algora; ver
+  // decisão estrutural intermediária). V1 roda sem token do GitHub.
+  const connector = new GitHubConnector({
+    httpClient: new SafeHttpClient(),
+    userAgent: 'escritorio-autonomo-cacador/0.1 (+https://github.com/GuilhermeSaldanha02/escritorio-autonomo)',
+  });
   const orchestratorWorker = createOrchestratorWorker({
     connection,
     prefix: config.QUEUE_PREFIX,
     pool,
     governor,
     sandboxManager,
+    connector,
     logger,
   });
   await Promise.all([worker.waitUntilReady(), orchestratorWorker.waitUntilReady()]);

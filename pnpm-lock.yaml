@@ -107,6 +107,9 @@ importers:
       '@escritorio/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@escritorio/cacador':
+        specifier: workspace:*
+        version: link:../../packages/cacador
       '@escritorio/database':
         specifier: workspace:*
         version: link:../../infrastructure/database
@@ -116,6 +119,9 @@ importers:
       '@escritorio/governor':
         specifier: workspace:*
         version: link:../../packages/governor
+      '@escritorio/http-safe':
+        specifier: workspace:*
+        version: link:../../packages/http-safe
       '@escritorio/shared':
         specifier: workspace:*
         version: link:../../packages/shared

@@ -101,6 +101,17 @@ describe('Caçador — ciclo de descoberta E2E (critério 19)', () => {
     expect(result.sourceStatus).toBe('OK');
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).toMatchObject({ kind: 'PROMOTED', rewardStatus: 'VERIFIED' });
+
+    // Compatibilidade com o contrato legado M1-M3: sem isto, ai_allowed/
+    // automation_allowed ficam NULL e opportunity-handler.ts descarta a
+    // oportunidade como INVALID antes do Diretor decidir — nunca chegaria a
+    // OPPORTUNITY_FOUND de verdade apesar da Promotion Policy ter liberado.
+    const opportunityId = (result.items[0] as { opportunityId: string }).opportunityId;
+    const { rows } = await pool.query<{ ai_allowed: boolean | null; automation_allowed: boolean | null }>(
+      `SELECT ai_allowed, automation_allowed FROM opportunities WHERE id = $1`,
+      [opportunityId],
+    );
+    expect(rows[0]).toEqual({ ai_allowed: true, automation_allowed: true });
   });
 
   it('PARTIALLY_VERIFIED: bounty com valor mas sem elegibilidade confirmada persiste sem promover', async () => {
