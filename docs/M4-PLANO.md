@@ -12,20 +12,33 @@ O milestone trata a tarefa como "descoberta externa confiável", não como "scra
 
 ## Fonte real: uma só, para provar a abstração
 
-- **Algora** como primeiro Source Connector real — tem API/documentação pública para bounties, claims, issues e PRs, construída especificamente em torno de recompensar contribuição open-source.
-- **GitHub** só como *enricher* complementar de evidência (dados da issue/repositório), não como fonte de oportunidade remunerada por si (GitHub Sponsors é patrocínio, não recompensa contratada para resolver uma issue específica).
-- **BountyHub** fica registrado como candidato ao **segundo** connector, depois que a abstração estiver provada com uma fonte só.
-- Não confundir "tem valor em dólares na página" com "dinheiro garantido" — há relatos públicos de bounties resolvidas/merged com pagamento pendente. Isso molda o modelo de dados (ver `reward_status` abaixo), não é só um detalhe de UX.
+### Decisão estrutural intermediária: Algora não tem API de listagem funcional (consulta durante a implementação)
+
+Antes de escrever o `AlgoraConnector`, fui direto no código-fonte real da Algora (`algora-io/algora` no GitHub, não documentação de terceiros) para confirmar o formato exato da API. Achado: `lib/algora_web/controllers/api/bounty_controller.ex` tem toda a lógica de filtro (`org`/`status`/`limit`) comentada, e a função `index/2` sempre chama `render(conn, :index, bounties: [])`, ignorando qualquer parâmetro. Confirmado em produção: `GET https://algora.io/api/trpc/bounty.list?...` devolve `{"items":[],"next_cursor":null}` sempre — não é ausência momentânea de bounty, é um endpoint que nunca retorna dado nenhum, por construção. O único outro endpoint público funcional (`GET /api/shields/:org_handle/bounties`) é real (chama `Bounties.fetch_stats`), mas só devolve um valor agregado em dinheiro para badge do shields.io, nunca uma lista de bounties individuais.
+
+Isso invalida a premissa original do plano (Algora como Source Connector real de listagem) — o critério 18 ("zero é resultado válido") foi pensado para uma fonte que às vezes não tem bounty aberta, não para uma fonte estruturalmente incapaz de devolver dado. Levado à revisão externa antes de escrever qualquer connector.
+
+**Decisão (revisão externa, 2026-09-18): GitHub REST/Search API vira a fonte real principal; Algora vira enricher de evidência, nunca bloqueante.**
+
+- **GitHub** (`GET /search/issues`, API REST pública, documentada, sem chave obrigatória) é o `SourceConnector` real do M4 — prova que uma issue existe, não prova sozinho que a recompensa será paga. A arquitetura da própria Algora depende do GitHub (GitHub App para criar bounties via comentário `/bounty`), então a inversão é natural, não uma fuga do escopo original.
+- Dentro do `GitHubConnector`, estratégias de descoberta são sinais de evidência, nunca conclusão: `BOUNTY_LABEL` (issue com label de bounty), `BOUNTY_KEYWORD` (menção a `/bounty` no corpo/comentários), `ALGORA_SIGNAL` (referência a algora.io), `PLATFORM_REFERENCE` (referência a outra plataforma permitida). Nenhuma delas sozinha satisfaz `VERIFIED` — só alimenta o Verifier com evidência rastreável.
+- **Algora** vira `AlgoraEvidenceEnricher`: busca evidência pública específica quando uma issue já referencia a Algora, mas nunca depende do endpoint de listagem quebrado. Se não conseguir buscar evidência, o resultado é `evidence_status = UNAVAILABLE` — a indisponibilidade da Algora nunca para o Caçador inteiro (diferente do `SourceConnector` principal, que é obrigatório).
+- **BountyHub** continua candidato a fonte adicional futura, sem mudança nesta decisão.
+- Identidade para GitHub: `source = 'github'`, `external_id` = identificador estável da issue devolvido pela API (`node_id`), `canonical_url = https://github.com/{owner}/{repo}/issues/{number}`, `target_identity = github:{owner}/{repo}#issue:{number}` — GitHub deixa de ser só enricher e passa a determinar a identidade principal da oportunidade.
+- Rate limit corrigido: a API REST não autenticada do GitHub é **60 requisições/hora** (não 60/minuto); o endpoint de Search tem limite ainda mais restrito (10/minuto não autenticado) e cabeçalhos `Retry-After`/`x-ratelimit-reset` têm precedência sobre qualquer configuração própria. V1 começa sem token.
+- Critério 18 reescrito: pelo menos uma consulta real à API pública do GitHub, pelo mesmo `SafeHttpClient`/`GitHubConnector` da aplicação, demonstrando conectividade/validação de schema/tratamento de rate-limit headers — zero candidatos continua resultado válido (agora genuinamente possível de acontecer por variação real, não garantido por um endpoint quebrado).
+- Critério 19 (E2E determinístico) ganha fixtures para: bounty por label, sinal `/bounty`, referência Algora, falsa indicação de bounty, recompensa conflitante, política de IA desconhecida, duplicata, revisão.
 
 ```
 M4
 ├── SourceConnector (interface genérica — o Caçador nunca depende de uma fonte específica)
-├── AlgoraConnector (real)
-├── GitHub Evidence Enricher
-└── FakeSourceConnector (testes)
+├── GitHubConnector (real — fonte principal)
+├── AlgoraEvidenceEnricher (real — evidência, nunca bloqueante)
+├── FakeSourceConnector (testes)
+└── FakeGitHubServer (testes determinísticos do critério 19)
 ```
 
-O objetivo arquitetural: adicionar uma segunda fonte depois não deve exigir alterar o Caçador.
+O objetivo arquitetural permanece: adicionar uma segunda fonte depois não deve exigir alterar o Caçador. Esta troca não exigiu — `SourceConnector`/`RawCandidate`/`Deduplicator`/`Verifier`/`Promotion Policy` (já implementados antes deste achado) continuam exatamente como estavam; só o connector concreto muda.
 
 ## Fluxo alvo
 
@@ -109,10 +122,10 @@ Regra central, válida mesmo antes de qualquer IA real consumir isso:
 
 ### `SafeHttpClient` — SSRF é responsabilidade da camada HTTP, não do connector (ajuste 3 da revisão externa)
 
-Decisão arquitetural mais importante deste ajuste: a proteção contra SSRF **não vive dentro do `AlgoraConnector`** — vive numa camada HTTP compartilhada que qualquer connector futuro (BountyHub, outra fonte) usa por baixo:
+Decisão arquitetural mais importante deste ajuste: a proteção contra SSRF **não vive dentro de um connector específico** (ex.: `GitHubConnector`) — vive numa camada HTTP compartilhada que qualquer connector futuro (BountyHub, outra fonte) usa por baixo:
 
 ```
-SourceConnector (Algora, BountyHub, ...)
+SourceConnector (GitHub, BountyHub, ...)
  → SafeHttpClient
  → validação de DNS/URL
  → Internet
@@ -124,7 +137,7 @@ A política do `SafeHttpClient` bloqueia, no mínimo: destinos loopback, link-lo
 
 ```ts
 SourcePolicy {
-  source: 'algora';
+  source: 'github';
   requestsPerMinute: number;
   concurrency: number;
   timeoutMs: number;
@@ -133,7 +146,7 @@ SourcePolicy {
 }
 ```
 
-Regra: respeitar o limite documentado pela fonte; um `429` com `Retry-After` tem precedência sobre qualquer configuração própria. Sem limite documentado, usar um default conservador e configurável (ex.: 1 requisição a cada poucos segundos, concorrência 1) — não uma tentativa de extrair o máximo possível. Isso é configuração do connector, não regra constitucional.
+Regra: respeitar o limite documentado pela fonte; um `429`/`403` com `Retry-After` (ou `x-ratelimit-reset`) tem precedência sobre qualquer configuração própria. Sem limite documentado, usar um default conservador e configurável (ex.: 1 requisição a cada poucos segundos, concorrência 1) — não uma tentativa de extrair o máximo possível. Isso é configuração do connector, não regra constitucional. Para o GitHub não autenticado especificamente: REST geral é 60/hora, Search (usado pelo `GitHubConnector`) é mais restrito (10/minuto) — V1 começa sem token, bem abaixo desses limites.
 
 `429` não é `FAILED` — é um estado próprio (`SOURCE_RATE_LIMITED`) que aciona backoff e continua depois. Nunca martelar o endpoint.
 
@@ -141,8 +154,8 @@ Regra: respeitar o limite documentado pela fonte; um `429` com `Retry-After` tem
 
 | # | Critério |
 |---|---|
-| 1 | Existe `SourceConnector` genérico; o Caçador não depende diretamente da Algora. |
-| 2 | Pelo menos uma fonte real permitida (Algora) é consultada pela internet, sem navegador/input manual. |
+| 1 | Existe `SourceConnector` genérico; o Caçador não depende diretamente do GitHub. |
+| 2 | Pelo menos uma fonte real permitida (GitHub) é consultada pela internet, sem navegador/input manual. |
 | 3 | O connector usa API/documentação oficial quando existe — sem scraping frágil se houver interface adequada. |
 | 4 | Dado externo entra como `UNTRUSTED_EXTERNAL`. |
 | 5 | Conteúdo externo não consegue alterar Governor, Constitution, tools, budget, prompts privilegiados nem acessar segredos. |
@@ -158,8 +171,8 @@ Regra: respeitar o limite documentado pela fonte; um `429` com `Retry-After` tem
 | 15 | Bug bounty/security continua fora do fluxo autônomo normal — exige humano no circuito (Constituição). |
 | 16 | Cada connector tem rate limit, timeout, retry/backoff e tratamento explícito de `429`, sem busy-loop. |
 | 17 | Indisponibilidade/mudança de schema da fonte produz estado conhecido e não corrompe oportunidades já persistidas. |
-| 18 | **Real Source Connectivity** (ajuste 4 da revisão externa): uma prova de integração consulta a Algora real pela internet, pelo mesmo `SafeHttpClient`/`AlgoraConnector` usado em produção, sem navegador nem input manual. Demonstra conectividade, validação de contrato/schema e tratamento correto da resposta real. **Zero oportunidades encontradas é resultado válido** — a existência de bounty real não pode ser condição de aprovação do M4. |
-| 19 | **Deterministic Discovery E2E** (ajuste 4 da revisão externa): servidor HTTP fake controlado → `AlgoraConnector` real → `RawCandidate` → `Normalizer` → `Deduplicator` → `Verifier` → `Promotion Policy` → `CACADOR-001` → `OPPORTUNITY_FOUND` → `Diretor`, com fixtures cobrindo `VERIFIED`/`PARTIALLY_VERIFIED`/`UNVERIFIED`/`CONFLICTING`/duplicata/revisão/`429`/`SOURCE_SCHEMA_DRIFT`/conteúdo com tentativa de prompt-injection. typecheck/lint/unit/integration/build limpos; custo externo R$0. |
+| 18 | **Real Source Connectivity** (ajuste 4 da revisão externa; fonte trocada para GitHub durante a implementação — ver decisão estrutural intermediária acima): uma prova de integração consulta a API pública real do GitHub pela internet, pelo mesmo `SafeHttpClient`/`GitHubConnector` usado em produção, sem navegador nem input manual. Demonstra conectividade, validação de contrato/schema e tratamento correto da resposta real (incluindo cabeçalhos de rate limit). **Zero candidatos encontrados é resultado válido**. |
+| 19 | **Deterministic Discovery E2E** (ajuste 4 da revisão externa; fonte trocada para GitHub): servidor HTTP fake controlado → `GitHubConnector` real → `RawCandidate` → `Normalizer` → `Deduplicator` → `Verifier` → `Promotion Policy` → `CACADOR-001` → `OPPORTUNITY_FOUND` → `Diretor`, com fixtures cobrindo `VERIFIED`/`PARTIALLY_VERIFIED`/`UNVERIFIED`/`CONFLICTING`/duplicata/revisão/`429`/`SOURCE_SCHEMA_DRIFT`/conteúdo com tentativa de prompt-injection. typecheck/lint/unit/integration/build limpos; custo externo R$0. |
 
 ## Prioridade de mutation/integration testing (os pontos mais perigosos)
 

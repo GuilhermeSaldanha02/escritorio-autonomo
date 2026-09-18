@@ -7,7 +7,7 @@ const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 export interface SafeHttpClientOptions {
   /**
    * Só para testes contra um servidor fake em localhost. Nunca `true` em
-   * produção (Algora, ou qualquer fonte real) — desliga o bloqueio de
+   * produção (GitHub, ou qualquer fonte real) — desliga o bloqueio de
    * endereço privado/loopback que existe justamente para isso.
    */
   allowPrivateNetworks?: boolean;
@@ -45,12 +45,12 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 export class SafeHttpClient {
   constructor(private readonly options: SafeHttpClientOptions = {}) {}
 
-  async fetch(url: string): Promise<SafeHttpResponse> {
+  async fetch(url: string, requestHeaders?: Record<string, string>): Promise<SafeHttpResponse> {
     const maxRedirects = this.options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
     let currentUrl = url;
     for (let redirectCount = 0; ; redirectCount++) {
       await this.#validateTarget(currentUrl);
-      const response = await this.#fetchOnce(currentUrl);
+      const response = await this.#fetchOnce(currentUrl, requestHeaders);
 
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location');
@@ -80,11 +80,11 @@ export class SafeHttpClient {
     }
   }
 
-  async #fetchOnce(url: string): Promise<Response> {
+  async #fetchOnce(url: string, requestHeaders?: Record<string, string>): Promise<Response> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
     try {
-      return await fetch(url, { redirect: 'manual', signal: controller.signal });
+      return await fetch(url, { redirect: 'manual', signal: controller.signal, headers: requestHeaders });
     } finally {
       clearTimeout(timeout);
     }

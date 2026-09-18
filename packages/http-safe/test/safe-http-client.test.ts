@@ -35,6 +35,11 @@ describe('SafeHttpClient — bloqueio de SSRF (servidor local real)', () => {
         res.end('x'.repeat(1024));
         return;
       }
+      if (req.url === '/echo-user-agent') {
+        res.writeHead(200, { 'content-type': 'text/plain' });
+        res.end(req.headers['user-agent'] ?? '');
+        return;
+      }
       res.writeHead(200, { 'content-type': 'text/plain' });
       res.end('ok');
     });
@@ -67,6 +72,12 @@ describe('SafeHttpClient — bloqueio de SSRF (servidor local real)', () => {
   it('rejeita resposta acima do limite de bytes', async () => {
     const client = new SafeHttpClient({ allowPrivateNetworks: true, maxResponseBytes: 100 });
     await expect(client.fetch(`${baseUrl}/big`)).rejects.toThrow(ResponseTooLargeError);
+  });
+
+  it('encaminha cabeçalhos de requisição (ex.: User-Agent, exigido pela API do GitHub)', async () => {
+    const client = new SafeHttpClient({ allowPrivateNetworks: true });
+    const response = await client.fetch(`${baseUrl}/echo-user-agent`, { 'User-Agent': 'escritorio-autonomo-cacador' });
+    expect(response.body).toBe('escritorio-autonomo-cacador');
   });
 });
 
