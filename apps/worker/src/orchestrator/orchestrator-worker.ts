@@ -1,5 +1,6 @@
 import { UnrecoverableError, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
+import { AiGateway, ModelRouter } from '@escritorio/ai';
 import { JOB_NAMES, QUEUE_NAMES } from '@escritorio/events';
 import type { Governor } from '@escritorio/governor';
 import type { Pool } from '@escritorio/database';
@@ -58,7 +59,11 @@ export function createOrchestratorWorker({
   // a mesma forma que `SandboxManager` tinha, então development-handler.ts
   // e review-handler.ts (e packages/agents por baixo) não mudam de forma.
   const toolGateway = new ToolGateway({ pool, governor, sandboxManager, logger });
-  const handleDecideOpportunity = createOpportunityHandler({ pool, governor, logger });
+  // M3, critério 13: o Diretor consulta o AI Gateway de verdade (AI_MODE
+  // sempre mock nesta fase — ver docs/M3-PLANO.md) só para uma nota de
+  // auditoria; a decisão em si continua vindo de decide()/authorizeExecution().
+  const aiGateway = new AiGateway({ pool, governor, router: new ModelRouter({ mode: 'mock' }), logger });
+  const handleDecideOpportunity = createOpportunityHandler({ pool, governor, aiGateway, logger });
   const handleDevelopTask = createDevelopmentHandler({ pool, governor, toolGateway, logger, waitSlotDelayMs });
   const handleReviewTask = createReviewHandler({ pool, governor, toolGateway, logger });
 

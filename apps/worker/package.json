@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@escritorio/agents": "workspace:*",
+    "@escritorio/ai": "workspace:*",
     "@escritorio/database": "workspace:*",
     "@escritorio/events": "workspace:*",
     "@escritorio/governor": "workspace:*",

@@ -141,7 +141,7 @@ describe('Orquestrador — ciclo completo', () => {
   it(
     'cenário feliz: oportunidade aprovada percorre até COMPLETED, com Desenvolvedor e Revisor em sandboxes distintas',
     async () => {
-      const { opportunityId } = await discoverOpportunity();
+      const { opportunityId, correlationId } = await discoverOpportunity();
 
       const task = await waitFor(async () => await taskForOpportunity(opportunityId), {
         timeoutMs: 30_000,
@@ -185,6 +185,17 @@ describe('Orquestrador — ciclo completo', () => {
       for (const row of agentRows) expect(row.state).toBe('SUCCESS');
       const stateChanges = await eventCount(task.id, 'AGENT_STATE_CHANGED');
       expect(stateChanges).toBeGreaterThanOrEqual(2); // ao menos Desenvolvedor e Revisor mudaram de estado.
+
+      // M3, critério 13: este mesmo ciclo já usa o AI Gateway de verdade —
+      // o Diretor consultou em modo mock antes de aprovar, com custo R$0 e
+      // registro auditável em model_calls (via AI Gateway).
+      const { rows: modelCallRows } = await pool.query<{ mode: string; status: string; cost_brl: string }>(
+        `SELECT mode, status, cost_brl FROM model_calls WHERE agent_id = 'DIRETOR-001' AND correlation_id = $1`,
+        [correlationId],
+      );
+      expect(modelCallRows).toHaveLength(1);
+      expect(modelCallRows[0]).toMatchObject({ mode: 'mock', status: 'SUCCESS' });
+      expect(Number(modelCallRows[0]?.cost_brl)).toBe(0);
     },
     90_000,
   );

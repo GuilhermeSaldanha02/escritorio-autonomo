@@ -98,6 +98,9 @@ importers:
       '@escritorio/agents':
         specifier: workspace:*
         version: link:../../packages/agents
+      '@escritorio/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@escritorio/database':
         specifier: workspace:*
         version: link:../../infrastructure/database
