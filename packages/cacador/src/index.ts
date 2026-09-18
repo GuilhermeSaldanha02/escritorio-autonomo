@@ -1,5 +1,6 @@
 export * from './deduplicator.js';
 export * from './fake-source-connector.js';
+export * from './github-connector.js';
 export * from './hash.js';
 export * from './normalizer.js';
 export * from './promotion-policy.js';
