@@ -5,7 +5,12 @@ export default defineConfig({
   resolve: { conditions: ['source'] },
   ssr: { resolve: { conditions: ['source'] } },
   test: {
-    include: ['apps/*/test/**/*.test.ts', 'packages/*/test/**/*.test.ts', 'infrastructure/database/test/**/*.test.ts'],
+    include: [
+      'apps/*/test/**/*.test.ts',
+      'packages/*/test/**/*.test.ts',
+      'infrastructure/database/test/**/*.test.ts',
+      'tests/architecture/**/*.test.ts',
+    ],
     environment: 'node',
   },
 });

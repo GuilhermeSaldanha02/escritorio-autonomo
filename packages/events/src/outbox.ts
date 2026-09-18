@@ -1,6 +1,7 @@
 import type { Queue } from 'bullmq';
 import { type Pool, type Queryable, withTransaction } from '@escritorio/database';
 import { describeError, type Logger, withTimeout } from '@escritorio/shared';
+import { TECHNICAL_BACKOFF } from './retry-policy.js';
 
 export interface OutboxEntry {
   eventId: string;
@@ -123,7 +124,7 @@ export class OutboxDispatcher {
             queue.add(row.job_name, row.payload, {
               jobId: row.job_id,
               attempts: row.job_attempts,
-              backoff: { type: 'exponential', delay: 1_000 },
+              backoff: { ...TECHNICAL_BACKOFF },
               removeOnComplete: { count: 1_000 },
               removeOnFail: { count: 5_000 },
             }),

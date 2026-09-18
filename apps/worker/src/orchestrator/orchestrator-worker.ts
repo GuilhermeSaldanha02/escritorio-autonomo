@@ -10,7 +10,7 @@ import {
   WorkPausedError,
 } from '@escritorio/autonomy';
 import type { SourceConnector } from '@escritorio/cacador';
-import { EventBus, JOB_NAMES, QUEUE_NAMES } from '@escritorio/events';
+import { classifyRetry, EventBus, isRetryableTechnicalError, JOB_NAMES, QUEUE_NAMES } from '@escritorio/events';
 import type { Governor } from '@escritorio/governor';
 import type { Pool } from '@escritorio/database';
 import type { SandboxManager } from '@escritorio/tools';
@@ -130,6 +130,11 @@ export function createOrchestratorWorker({
           await jobGate.pause(job, error.gate, error.reason);
           return;
         }
+        // Erro de programação, de validação ou irrecuperável: repetir só gasta tentativa
+        // (critério 14). Os demais seguem o backoff técnico do outbox, sem tocar em retry_count.
+        if (!isRetryableTechnicalError(error)) {
+          throw new UnrecoverableError(error instanceof Error ? error.message : String(error));
+        }
         throw error;
       }
     },
@@ -147,7 +152,13 @@ export function createOrchestratorWorker({
 
   worker.on('failed', (job, error) => {
     logger.error(
-      { jobId: job?.id, jobName: job?.name, attemptsMade: job?.attemptsMade, err: describeError(error) },
+      {
+        jobId: job?.id,
+        jobName: job?.name,
+        attemptsMade: job?.attemptsMade,
+        retryClass: classifyRetry({ kind: 'ERROR', error }),
+        err: describeError(error),
+      },
       'job do orquestrador falhou',
     );
   });

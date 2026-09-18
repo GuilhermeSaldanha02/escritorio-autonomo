@@ -5,3 +5,4 @@ export * from './outbox.js';
 export * from './queues.js';
 export * from './store.js';
 export * from './transitions.js';
+export * from './retry-policy.js';
