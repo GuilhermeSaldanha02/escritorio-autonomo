@@ -5,10 +5,10 @@
 - **Última sessão:** 2026-09-21 · agente: codex · branch: `feat/m7-office-ui`.
 - **O que foi feito:** checkpoint M7 preservado e branch reconciliada sobre `staging`/`f468625`; fixture-driven data source, contrato de estados, layout/paleta aprovados, scene model determinístico, Phaser, Dashboard, Inspector, Timeline, tokens visuais e testes foram concluídos no commit `6256ad9`.
 - **Verificado:** UI unit `7 arquivos / 23 testes`; suíte raiz `47 arquivos / 374 testes`; typecheck monorepo; lint geral; build UI; gate visual local com conteúdo, canvas Phaser e console sem erros/warnings.
-- **Em andamento:** aguardando revisão independente do M7-UI.
-- **Não commitado:** nada.
+- **Em andamento:** aguardando revisão independente do M7-UI; rodada técnica do QA registrada em `QA.md`.
+- **Não commitado:** atualização do registro QA desta rodada, aguardando commit.
 - **Bloqueado / a decidir:** a prova visual ainda é `ALEGADO`, conforme regra do projeto; não há CLI `agent-browser` instalado. Integração viva/backend permanece fora do escopo.
-- **Próximo passo:** revisão independente; depois decidir integração futura em M7-INTEGRATION.
+- **Próximo passo:** revisão independente com evidências cruas; depois decidir integração futura em M7-INTEGRATION.
 - **Para o outro agente saber:** não fazer merge/rebase adicional, não tocar `.env`, não introduzir rede/backend; a aba local `http://localhost:5173/` mostrou o painel e o servidor pode ser encerrado após a revisão.
 
 ## PAINEL
