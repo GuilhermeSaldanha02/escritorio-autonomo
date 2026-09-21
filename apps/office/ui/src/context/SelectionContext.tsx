@@ -1,5 +1,5 @@
 // src/context/SelectionContext.tsx
-import React, { createContext, useContext, ReactNode, useState } from "react";
+import { createContext, useContext, useState, type ReactNode } from 'react';
 
 interface SelectionContextValue {
   selectedAgentId: string | null;

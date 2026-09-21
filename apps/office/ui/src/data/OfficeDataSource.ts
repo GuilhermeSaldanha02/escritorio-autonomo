@@ -1,6 +1,6 @@
 // src/data/OfficeDataSource.ts
 
-import type { OfficeSnapshot, OfficeEvent, OfficeEventHandler, Unsubscribe } from "./types";
+import type { OfficeEventHandler, OfficeSnapshot, Unsubscribe } from './types';
 
 /**
  * Public contract for the UI to retrieve a read‑only projection of the Office.

@@ -1,32 +1,41 @@
-// src/components/__tests__/Inspector.test.tsx
-import React from "react";
-import { render, screen } from "@testing-library/react";
-import { OfficeDataProvider } from "../../context/OfficeDataContext";
-import { SelectionProvider, useSelection } from "../../context/SelectionContext";
-import Inspector from "../Inspector";
+// @vitest-environment jsdom
+import { render, screen } from '@testing-library/react';
+import { useEffect } from 'react';
+import { describe, expect, it } from 'vitest';
 
-// Helper component to set a selected agent ID.
-const SetSelection: React.FC<{ id: string }> = ({ id }) => {
+import Inspector from '../Inspector';
+import { OfficeDataProvider } from '../../context/OfficeDataContext';
+import { SelectionProvider, useSelection } from '../../context/SelectionContext';
+import { fixtureOfficeDataSource } from '../../data/FixtureOfficeDataSource';
+import type { OfficeDataSource } from '../../data/OfficeDataSource';
+
+function SelectedAgent({ id }: { id: string }) {
   const { setSelectedAgentId } = useSelection();
-  React.useEffect(() => {
-    setSelectedAgentId(id);
-  }, [id, setSelectedAgentId]);
+  useEffect(() => setSelectedAgentId(id), [id, setSelectedAgentId]);
   return null;
-};
+}
 
-test("Inspector displays details of the selected agent", async () => {
-  render(
-    <OfficeDataProvider>
-      <SelectionProvider>
-        <SetSelection id="agent-1" />
-        <Inspector />
-      </SelectionProvider>
-    </OfficeDataProvider>
-  );
+describe('Inspector', () => {
+  it('mostra lifecycle, tarefa e espera sem converter pausa em falha', async () => {
+    const snapshot = await fixtureOfficeDataSource.getSnapshot();
+    const waitingAgent = snapshot.agents.find((agent) => agent.id === 'REVISOR-001');
+    if (waitingAgent === undefined) throw new Error('Fixture sem REVISOR-001');
+    waitingAgent.lifecycleStatus = 'PROBATION';
+    const dataSource: OfficeDataSource = { getSnapshot: async () => snapshot, subscribe: () => () => undefined };
 
-  // Wait for inspector to load data (snapshot fetch).
-  expect(await screen.findByText(/Agent Inspector/i)).toBeInTheDocument();
-  // The fixture should contain an agent with id "agent-1" (adjust if different).
-  expect(screen.getByText(/ID:/i)).toBeInTheDocument();
-  expect(screen.getByText(/agent-1/i)).toBeInTheDocument();
+    render(
+      <OfficeDataProvider dataSource={dataSource}>
+        <SelectionProvider>
+          <SelectedAgent id="REVISOR-001" />
+          <Inspector />
+        </SelectionProvider>
+      </OfficeDataProvider>,
+    );
+
+    expect(await screen.findByText('REVISOR-001')).toBeTruthy();
+    expect(screen.getByText('PROBATION')).toBeTruthy();
+    expect(screen.getByText('AGUARDANDO')).toBeTruthy();
+    expect(screen.queryByText('FALHOU')).toBeNull();
+    expect(screen.getByText('desk-qa-01')).toBeTruthy();
+  });
 });

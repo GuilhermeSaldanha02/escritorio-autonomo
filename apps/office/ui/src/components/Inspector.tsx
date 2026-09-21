@@ -1,47 +1,38 @@
-// src/components/Inspector.tsx
-import React from "react";
-import { useOfficeDataSource } from "../context/OfficeDataContext";
-import { useSelection } from "../context/SelectionContext";
-import type { OfficeSnapshot, Agent } from "../data/types";
+import type { CSSProperties } from 'react';
 
-const Inspector: React.FC = () => {
-  const dataSource = useOfficeDataSource();
+import { useSelection } from '../context/SelectionContext';
+import { useOfficeSnapshot } from '../hooks/useOfficeSnapshot';
+import { visualStateResolver } from '../util/VisualStateResolver';
+
+export default function Inspector() {
+  const snapshot = useOfficeSnapshot();
   const { selectedAgentId } = useSelection();
-  const [snapshot, setSnapshot] = React.useState<OfficeSnapshot | null>(null);
+  if (snapshot === null) return <p className="office-loading">Carregando detalhes…</p>;
 
-  React.useEffect(() => {
-    let cancelled = false;
-    dataSource.getSnapshot().then((snap) => {
-      if (!cancelled) setSnapshot(snap);
-    });
-    const unsub = dataSource.subscribe(() => {
-      dataSource.getSnapshot().then((snap) => {
-        if (!cancelled) setSnapshot(snap);
-      });
-    });
-    return () => {
-      cancelled = true;
-      unsub();
-    };
-  }, [dataSource]);
-
-  if (!snapshot) return <div>Loading inspector...</div>;
-
-  const agent: Agent | undefined = snapshot.agents.find((a) => a.id === selectedAgentId);
-
-  if (!agent) {
-    return <div>Select an agent to inspect.</div>;
+  const agent = snapshot.agents.find((candidate) => candidate.id === selectedAgentId);
+  if (agent === undefined) {
+    return <aside className="office-inspector empty-inspector"><p>Selecione um agente no mapa para inspecionar seu estado.</p></aside>;
   }
 
+  const visual = visualStateResolver(agent.state);
   return (
-    <div className="inspector">
-      <h2>Agent Inspector</h2>
-      <p><strong>ID:</strong> {agent.id}</p>
-      <p><strong>Name:</strong> {agent.name}</p>
-      <p><strong>State:</strong> {agent.state}</p>
-      <p><strong>Workstation:</strong> {agent.workstationId ?? "None"}</p>
-    </div>
+    <aside className="office-inspector" aria-label={`Detalhes de ${agent.id}`}>
+      <p className="eyebrow">Painel do agente</p>
+      <h2>{agent.id}</h2>
+      <p className="agent-name">{agent.displayName}</p>
+      <dl>
+        <div><dt>Papel</dt><dd>{agent.role}</dd></div>
+        <div><dt>Lifecycle</dt><dd>{agent.lifecycleStatus}</dd></div>
+        <div><dt>Estado</dt><dd className="state-value" style={{ '--state-color': visual.color } as CSSProperties}>{visual.label}</dd></div>
+        <div><dt>Estação</dt><dd>{agent.workstationId ?? 'Sem estação atribuída'}</dd></div>
+      </dl>
+      <section className="agent-task" aria-label="Tarefa atual">
+        <h3>Tarefa atual</h3>
+        {agent.currentTask === null ? <p>Nenhuma tarefa ativa.</p> : <>
+          <p>{agent.currentTask.objective}</p>
+          <small>{agent.currentTask.status} · tentativas: {agent.currentTask.retryCount}</small>
+        </>}
+      </section>
+    </aside>
   );
-};
-
-export default Inspector;
+}

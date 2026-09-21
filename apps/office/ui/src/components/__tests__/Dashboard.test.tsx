@@ -1,33 +1,33 @@
-// src/components/__tests__/Dashboard.test.tsx
-import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
-import Dashboard from "../Dashboard";
-import { OfficeDataProvider } from "../../context/OfficeDataContext";
+// @vitest-environment jsdom
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 
-// The fixture data source provides a static snapshot; we rely on it.
+import Dashboard from '../Dashboard';
+import { OfficeDataProvider } from '../../context/OfficeDataContext';
+import { fixtureOfficeDataSource } from '../../data/FixtureOfficeDataSource';
+import type { OfficeDataSource } from '../../data/OfficeDataSource';
 
-test("Dashboard renders metrics and flags", async () => {
-  render(
-    <OfficeDataProvider>
-      <Dashboard />
-    </OfficeDataProvider>
-  );
+describe('Dashboard', () => {
+  it('mantém finanças REAL e SIMULATION separadas e apresenta governança sem inferir regras', async () => {
+    const snapshot = await fixtureOfficeDataSource.getSnapshot();
+    snapshot.governance.emergencyStop = true;
+    snapshot.governance.circuitBreaker = 'OPEN';
+    const dataSource: OfficeDataSource = { getSnapshot: async () => snapshot, subscribe: () => () => undefined };
 
-  // Initially shows loading state.
-  expect(screen.getByText(/Loading dashboard.../i)).toBeInTheDocument();
+    render(
+      <OfficeDataProvider dataSource={dataSource}>
+        <Dashboard />
+      </OfficeDataProvider>,
+    );
 
-  // Wait for snapshot to load.
-  await waitFor(() => {
-    expect(screen.getByText(/Metrics/i)).toBeInTheDocument();
+    expect(await screen.findByText('Modo demonstração')).toBeTruthy();
+    expect(screen.getByText('Caixa REAL')).toBeTruthy();
+    expect(screen.getByText('Caixa SIMULATION')).toBeTruthy();
+    expect(screen.getByText(/1\.842,50/)).toBeTruthy();
+    expect(screen.getByText(/2\.460,00/)).toBeTruthy();
+    expect(screen.getByText('Autonomia ativa')).toBeTruthy();
+    expect(screen.getByText('Auto-spend desativado')).toBeTruthy();
+    expect(screen.getByText('Emergency Stop ativo')).toBeTruthy();
+    expect(screen.getByText('Circuit Breaker aberto')).toBeTruthy();
   });
-
-  // Verify a few metric cells are present (values depend on fixture).
-  const cashRealCell = screen.getByText(/Cash \(Real\)/i);
-  expect(cashRealCell).toBeInTheDocument();
-  // The adjacent cell should contain a number.
-  const cashRealValue = cashRealCell.parentElement?.nextElementSibling;
-  expect(cashRealValue?.textContent).toMatch(/\d+/);
-
-  // Verify status flags are rendered.
-  expect(screen.getByText(/Autonomy Enabled:/i)).toBeInTheDocument();
 });

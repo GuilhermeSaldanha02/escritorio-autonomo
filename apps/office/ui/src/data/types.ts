@@ -1,57 +1,89 @@
-// src/data/types.ts
+export const AGENT_STATES = [
+  'IDLE',
+  'SEARCHING',
+  'ANALYZING',
+  'THINKING',
+  'CODING',
+  'TESTING',
+  'REVIEWING',
+  'WAITING',
+  'BLOCKED',
+  'SUCCESS',
+  'FAILED',
+  'SLEEP',
+  'UNKNOWN',
+] as const;
 
-/**
- * Types that represent the read‑only projection of the Office.
- * They are derived from the approved M7‑OFFICE‑CONTRACT.
- */
-export interface Agent {
+export type AgentState = (typeof AGENT_STATES)[number];
+export type AgentRole = 'CACADOR' | 'DIRETOR' | 'DESENVOLVEDOR' | 'REVISOR' | 'OUTRO';
+export type AgentLifecycleStatus = 'PROBATION' | 'ACTIVE' | 'SLEEP' | 'ARCHIVED';
+export type LedgerScope = 'REAL' | 'SIMULATION';
+export type CircuitBreakerStatus = 'CLOSED' | 'OPEN' | 'HALF_OPEN' | 'PLANNED';
+
+export interface CurrentTaskSummary {
   id: string;
-  name: string;
-  state: string; // one of the 12 visual states or "UNKNOWN"
+  objective: string;
+  status: string;
+  retryCount: number;
+  startedAt: string;
+}
+
+export interface OfficeAgent {
+  id: string;
+  displayName: string;
+  role: AgentRole;
+  responsibility: string;
+  lifecycleStatus: AgentLifecycleStatus;
+  state: AgentState;
+  stateSince: string;
   workstationId?: string;
-  // additional UI‑only fields can be added here
+  currentTask: CurrentTaskSummary | null;
 }
 
-export interface Workstation {
+export interface OfficeWorkstation {
   id: string;
-  x: number;
-  y: number;
-  // other layout properties as defined in layout.json
+  roomId: string;
+  status: 'OCCUPIED' | 'EMPTY';
+  assignedAgentId: string | null;
 }
 
-export interface Metrics {
-  cashReal: number;
-  cashSimulated: number;
-  reserveReal: number;
-  reserveSimulated: number;
-  operationsReal: number;
-  operationsSimulated: number;
-  expansionReal: number;
-  expansionSimulated: number;
-  // ... other metric fields from the contract
+export interface FinancialScopeSnapshot {
+  cashCents: number;
+  reserveCents: number;
+  operationsCents: number;
+  expansionCents: number;
+}
+
+export interface OfficeTimelineEvent {
+  id: string;
+  type: string;
+  occurredAt: string;
+  agentId?: string;
+  summary: string;
+  untrustedExternal?: string;
+}
+
+export interface OfficeEvent {
+  type: 'SNAPSHOT_UPDATED' | 'TIMELINE_APPENDED';
 }
 
 export interface OfficeSnapshot {
-  agents: Agent[];
-  workstations: Workstation[];
-  metrics: Metrics;
-  // any other projection fields required by the UI (e.g., governor limits, flags)
-  autonomyEnabled: boolean;
-  autoSpendEnabled: boolean;
-  emergencyStop: boolean;
-  circuitBreakerActive: boolean;
-  // raw fixture timestamp etc.
+  mode: 'DEMO';
   generatedAt: string;
+  agents: OfficeAgent[];
+  workstations: OfficeWorkstation[];
+  financial: {
+    real: FinancialScopeSnapshot;
+    simulation: FinancialScopeSnapshot;
+  };
+  governance: {
+    autonomyEnabled: boolean;
+    autoSpendEnabled: boolean;
+    emergencyStop: boolean;
+    circuitBreaker: CircuitBreakerStatus;
+  };
+  timeline: OfficeTimelineEvent[];
 }
 
-/** Event emitted for UI updates (e.g., timeline entries). */
-export interface OfficeEvent {
-  type: string; // e.g., "AGENT_STATE_CHANGED", "METRICS_UPDATED"
-  payload: any;
-}
-
-/** Callback type for subscribing to events. */
 export type OfficeEventHandler = (event: OfficeEvent) => void;
-
-/** Unsubscribe function returned by subscribe. */
 export type Unsubscribe = () => void;

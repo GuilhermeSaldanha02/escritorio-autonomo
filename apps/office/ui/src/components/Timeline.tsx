@@ -1,38 +1,34 @@
-// src/components/Timeline.tsx
-import React from "react";
-import { useOfficeDataSource } from "../context/OfficeDataContext";
-import type { OfficeSnapshot, OfficeEvent } from "../data/types";
+import { useOfficeSnapshot } from '../hooks/useOfficeSnapshot';
 
-const Timeline: React.FC = () => {
-  const dataSource = useOfficeDataSource();
-  const [events, setEvents] = React.useState<OfficeEvent[]>([]);
+function timeOf(isoDate: string): string {
+  return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(isoDate));
+}
 
-  React.useEffect(() => {
-    // Initial empty events list; subscribe for future events.
-    const unsubscribe = dataSource.subscribe((event) => {
-      setEvents((prev) => [...prev, event]);
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, [dataSource]);
+export default function Timeline() {
+  const snapshot = useOfficeSnapshot();
+  if (snapshot === null) return <p className="office-loading">Carregando eventos…</p>;
 
   return (
-    <div className="timeline">
-      <h2>Timeline</h2>
-      {events.length === 0 ? (
-        <p>No events yet.</p>
-      ) : (
-        <ul>
-          {events.map((e, idx) => (
-            <li key={idx}>
-              <strong>{e.type}:</strong> {typeof e.payload === "string" ? e.payload : JSON.stringify(e.payload)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <section className="office-timeline" aria-label="Linha do tempo">
+      <div className="office-section-heading">
+        <div>
+          <p className="eyebrow">Auditoria de leitura</p>
+          <h2>Linha do tempo</h2>
+        </div>
+        <span>{snapshot.timeline.length} eventos</span>
+      </div>
+      <ol>
+        {snapshot.timeline.map((event) => (
+          <li key={event.id}>
+            <time dateTime={event.occurredAt}>{timeOf(event.occurredAt)}</time>
+            <div>
+              <strong>{event.type}</strong>
+              <p>{event.summary}</p>
+              {event.untrustedExternal === undefined ? null : <p className="untrusted-text"><span>UNTRUSTED_EXTERNAL</span>{event.untrustedExternal}</p>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
-};
-
-export default Timeline;
+}

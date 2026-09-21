@@ -1,0 +1,166 @@
+{
+  "$schema": "./layout-schema.json",
+  "version": "1.0.0",
+  "title": "Planta Baixa do Escritório Autônomo",
+  "description": "Especificação espacial de salas, estações de trabalho e postos vagos para expansão dinâmica de agentes",
+  "grid": {
+    "columns": 40,
+    "rows": 24,
+    "tileSize": 20,
+    "canvasWidth": 800,
+    "canvasHeight": 480
+  },
+  "rooms": [
+    {
+      "id": "room-prospecting",
+      "name": "Sala de Prospecção",
+      "purpose": "Pesquisa contínua, varredura de plataformas e verificação de fontes públicas",
+      "bounds": { "x": 1, "y": 1, "width": 12, "height": 10 },
+      "themeColor": "#0891b2",
+      "workstations": [
+        {
+          "workstationId": "desk-pros-01",
+          "title": "Mesa Primária - Caçador",
+          "assignedAgentId": "CACADOR-001",
+          "status": "OCCUPIED",
+          "position": { "col": 4, "row": 5 },
+          "facing": "SOUTH"
+        },
+        {
+          "workstationId": "desk-pros-02",
+          "title": "Mesa Reserva Prospecção",
+          "assignedAgentId": null,
+          "status": "EMPTY",
+          "position": { "col": 8, "row": 5 },
+          "facing": "SOUTH"
+        }
+      ]
+    },
+    {
+      "id": "room-boardroom",
+      "name": "Sala da Diretoria",
+      "purpose": "Priorização estratégica, aprovação de oportunidades e alocação de tarefas",
+      "bounds": { "x": 14, "y": 1, "width": 12, "height": 10 },
+      "themeColor": "#6366f1",
+      "workstations": [
+        {
+          "workstationId": "desk-board-01",
+          "title": "Mesa de Decisão - Diretor",
+          "assignedAgentId": "DIRETOR-001",
+          "status": "OCCUPIED",
+          "position": { "col": 17, "row": 5 },
+          "facing": "SOUTH"
+        },
+        {
+          "workstationId": "desk-board-02",
+          "title": "Mesa Reserva de Planejamento",
+          "assignedAgentId": null,
+          "status": "EMPTY",
+          "position": { "col": 21, "row": 5 },
+          "facing": "SOUTH"
+        }
+      ]
+    },
+    {
+      "id": "room-breakroom",
+      "name": "Área de Descompressão e Café",
+      "purpose": "Repouso de agentes em estado SLEEP e integração social",
+      "bounds": { "x": 27, "y": 1, "width": 12, "height": 10 },
+      "themeColor": "#14b8a6",
+      "features": [
+        { "id": "coffee-machine", "label": "Cafeteira Expressa", "position": { "col": 29, "row": 3 } },
+        { "id": "lounge-couch", "label": "Sofá Modular", "position": { "col": 33, "row": 4 } },
+        { "id": "rest-pod-01", "label": "Cápsula de Sono 1 (SLEEP)", "position": { "col": 31, "row": 7 } }
+      ],
+      "workstations": []
+    },
+    {
+      "id": "room-engineering",
+      "name": "Laboratório de Engenharia",
+      "purpose": "Desenvolvimento em sandbox isolado, execução técnica e compilação",
+      "bounds": { "x": 1, "y": 12, "width": 15, "height": 11 },
+      "themeColor": "#10b981",
+      "workstations": [
+        {
+          "workstationId": "desk-eng-01",
+          "title": "Estação Sandbox 01",
+          "assignedAgentId": "DESENVOLVEDOR-001",
+          "status": "OCCUPIED",
+          "position": { "col": 4, "row": 16 },
+          "facing": "SOUTH"
+        },
+        {
+          "workstationId": "desk-eng-02",
+          "title": "Estação Sandbox 02 (Reserva M6)",
+          "assignedAgentId": null,
+          "status": "EMPTY",
+          "position": { "col": 8, "row": 16 },
+          "facing": "SOUTH"
+        },
+        {
+          "workstationId": "desk-eng-03",
+          "title": "Estação Sandbox 03 (Reserva M6)",
+          "assignedAgentId": null,
+          "status": "EMPTY",
+          "position": { "col": 12, "row": 16 },
+          "facing": "SOUTH"
+        }
+      ]
+    },
+    {
+      "id": "room-qa-review",
+      "name": "Sala de Auditoria e Revisão",
+      "purpose": "Auditoria independente de implementações, validação de critérios e segurança",
+      "bounds": { "x": 17, "y": 12, "width": 11, "height": 11 },
+      "themeColor": "#f59e0b",
+      "workstations": [
+        {
+          "workstationId": "desk-qa-01",
+          "title": "Estação de Auditoria 01",
+          "assignedAgentId": "REVISOR-001",
+          "status": "OCCUPIED",
+          "position": { "col": 20, "row": 16 },
+          "facing": "SOUTH"
+        },
+        {
+          "workstationId": "desk-qa-02",
+          "title": "Estação de Auditoria 02 (Reserva)",
+          "assignedAgentId": null,
+          "status": "EMPTY",
+          "position": { "col": 24, "row": 16 },
+          "facing": "SOUTH"
+        }
+      ]
+    },
+    {
+      "id": "room-servers",
+      "name": "Sala de Servidores e Infraestrutura",
+      "purpose": "Nódulos do Postgres, Redis, BullMQ e Tool Gateway",
+      "bounds": { "x": 29, "y": 12, "width": 10, "height": 11 },
+      "themeColor": "#64748b",
+      "features": [
+        { "id": "rack-sandbox", "label": "Rack Docker Sandbox", "position": { "col": 32, "row": 15 } },
+        { "id": "rack-db", "label": "Rack Postgres + pgvector", "position": { "col": 35, "row": 15 } }
+      ],
+      "workstations": []
+    }
+  ],
+  "defaultPlacement": {
+    "CACADOR-001": {
+      "roomId": "room-prospecting",
+      "workstationId": "desk-pros-01"
+    },
+    "DIRETOR-001": {
+      "roomId": "room-boardroom",
+      "workstationId": "desk-board-01"
+    },
+    "DESENVOLVEDOR-001": {
+      "roomId": "room-engineering",
+      "workstationId": "desk-eng-01"
+    },
+    "REVISOR-001": {
+      "roomId": "room-qa-review",
+      "workstationId": "desk-qa-01"
+    }
+  }
+}

@@ -1,32 +1,30 @@
-// src/util/__tests__/VisualStateResolver.test.ts
-import { visualStateResolver } from "../VisualStateResolver";
+import { visualStateResolver } from '../VisualStateResolver';
+import { describe, expect, it } from 'vitest';
 
-describe("visualStateResolver", () => {
-  const knownStates = [
-    "IDLE",
-    "SEARCHING",
-    "ANALYZING",
-    "WORKING",
-    "MOVING",
-    "PAUSED",
-    "EMERGENCY_STOP",
-    "CIRCUIT_BREAKER",
-    "FAILURE",
-    "COMPLETED",
-    "ERROR",
-    "UNKNOWN",
-  ];
-
-  test("maps each known state to a unique frame index", () => {
-    const indices = knownStates.map((s) => visualStateResolver(s));
-    // All indices should be distinct and sequential from 0.
-    expect(new Set(indices).size).toBe(knownStates.length);
-    expect(indices[0]).toBe(0);
-    expect(indices[indices.length - 1]).toBe(knownStates.length - 1);
+describe('visualStateResolver', () => {
+  it.each([
+    ['IDLE', 'OCIOSO', 'IDLE'],
+    ['SEARCHING', 'PESQUISANDO', 'SEARCHING'],
+    ['ANALYZING', 'ANALISANDO', 'ANALYZING'],
+    ['THINKING', 'PENSANDO', 'ANALYZING'],
+    ['CODING', 'PROGRAMANDO', 'WORKING'],
+    ['TESTING', 'TESTANDO', 'WORKING'],
+    ['REVIEWING', 'REVISANDO', 'WORKING'],
+    ['WAITING', 'AGUARDANDO', 'WAITING'],
+    ['BLOCKED', 'BLOQUEADO', 'BLOCKED'],
+    ['SUCCESS', 'CONCLUÍDO', 'COMPLETED'],
+    ['FAILED', 'FALHOU', 'FAILED'],
+    ['SLEEP', 'DORMINDO', 'SLEEPING'],
+    ['UNKNOWN', 'DESCONHECIDO', 'UNKNOWN'],
+  ])('descreve %s de forma determinística', (state, label, category) => {
+    expect(visualStateResolver(state)).toMatchObject({ state, label, category });
   });
 
-  test("fallbacks to UNKNOWN for unknown states", () => {
-    const unknown = visualStateResolver("SOME_RANDOM_STATE");
-    expect(unknown).toBe(knownStates.length - 1); // index of UNKNOWN
+  it('nunca infere um estado desconhecido', () => {
+    expect(visualStateResolver('WORKING')).toMatchObject({
+      state: 'UNKNOWN',
+      label: 'DESCONHECIDO',
+      category: 'UNKNOWN',
+    });
   });
 });

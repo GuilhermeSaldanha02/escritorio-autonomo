@@ -1,26 +1,17 @@
-// src/context/OfficeDataContext.tsx
+import { createContext, useContext, type ReactNode } from 'react';
 
-import React, { createContext, useContext, ReactNode } from "react";
-import type { OfficeDataSource } from "../data/OfficeDataSource";
-import { fixtureOfficeDataSource } from "../data/FixtureOfficeDataSource";
+import type { OfficeDataSource } from '../data/OfficeDataSource';
 
-/**
- * React context that provides the OfficeDataSource implementation.
- * The default implementation is the in‑memory FixtureOfficeDataSource (demo mode).
- */
-const OfficeDataContext = createContext<OfficeDataSource>(fixtureOfficeDataSource);
+const OfficeDataContext = createContext<OfficeDataSource | null>(null);
 
-/** Hook to access the current OfficeDataSource. */
-export const useOfficeDataSource = () => useContext(OfficeDataContext);
-
-interface ProviderProps {
-  /** Allows swapping the data source (e.g., in tests). */
-  dataSource?: OfficeDataSource;
-  children: ReactNode;
+export function useOfficeDataSource(): OfficeDataSource {
+  const dataSource = useContext(OfficeDataContext);
+  if (dataSource === null) {
+    throw new Error('OfficeDataProvider é obrigatório para consumir os dados do Office.');
+  }
+  return dataSource;
 }
 
-/** Provider component that injects the chosen data source into the React tree. */
-export const OfficeDataProvider: React.FC<ProviderProps> = ({ dataSource, children }) => {
-  const source = dataSource ?? fixtureOfficeDataSource;
-  return <OfficeDataContext.Provider value={source}>{children}</OfficeDataContext.Provider>;
-};
+export function OfficeDataProvider({ dataSource, children }: { dataSource: OfficeDataSource; children: ReactNode }) {
+  return <OfficeDataContext.Provider value={dataSource}>{children}</OfficeDataContext.Provider>;
+}

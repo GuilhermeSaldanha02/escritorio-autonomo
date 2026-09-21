@@ -1,57 +1,51 @@
-// src/components/Dashboard.tsx
-import React from "react";
-import { useOfficeDataSource } from "../context/OfficeDataContext";
-import type { OfficeSnapshot } from "../data/types";
+import { useOfficeSnapshot } from '../hooks/useOfficeSnapshot';
 
-const Dashboard: React.FC = () => {
-  const dataSource = useOfficeDataSource();
-  const [snapshot, setSnapshot] = React.useState<OfficeSnapshot | null>(null);
+function formatCurrency(cents: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
+}
 
-  React.useEffect(() => {
-    let cancelled = false;
-    dataSource.getSnapshot().then((snap) => {
-      if (!cancelled) setSnapshot(snap);
-    });
-    const unsubscribe = dataSource.subscribe(() => {
-      // Re‑fetch full snapshot on any event (demo source is static).
-      dataSource.getSnapshot().then((snap) => {
-        if (!cancelled) setSnapshot(snap);
-      });
-    });
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [dataSource]);
+function circuitBreakerLabel(status: 'CLOSED' | 'OPEN' | 'HALF_OPEN' | 'PLANNED'): string {
+  const labels = {
+    CLOSED: 'Circuit Breaker fechado',
+    OPEN: 'Circuit Breaker aberto',
+    HALF_OPEN: 'Circuit Breaker em teste',
+    PLANNED: 'Circuit Breaker planejado',
+  } as const;
+  return labels[status];
+}
 
-  if (!snapshot) return <div>Loading dashboard...</div>;
+export default function Dashboard() {
+  const snapshot = useOfficeSnapshot();
+  if (snapshot === null) return <p className="office-loading">Carregando painel do Office…</p>;
 
-  const { metrics, autonomyEnabled, autoSpendEnabled, emergencyStop, circuitBreakerActive } = snapshot;
-
+  const { financial, governance } = snapshot;
   return (
-    <div className="dashboard">
-      <h2>Metrics</h2>
-      <table className="metrics-table">
-        <tbody>
-          <tr><td>Cash (Real)</td><td>{metrics.cashReal}</td></tr>
-          <tr><td>Cash (Simulated)</td><td>{metrics.cashSimulated}</td></tr>
-          <tr><td>Reserve (Real)</td><td>{metrics.reserveReal}</td></tr>
-          <tr><td>Reserve (Simulated)</td><td>{metrics.reserveSimulated}</td></tr>
-          <tr><td>Operations (Real)</td><td>{metrics.operationsReal}</td></tr>
-          <tr><td>Operations (Simulated)</td><td>{metrics.operationsSimulated}</td></tr>
-          <tr><td>Expansion (Real)</td><td>{metrics.expansionReal}</td></tr>
-          <tr><td>Expansion (Simulated)</td><td>{metrics.expansionSimulated}</td></tr>
-        </tbody>
-      </table>
-      <h3>Status Flags</h3>
-      <ul className="flags-list">
-        <li>Autonomy Enabled: {autonomyEnabled ? "YES" : "NO"}</li>
-        <li>Auto‑Spend Enabled: {autoSpendEnabled ? "YES" : "NO"}</li>
-        <li>Emergency Stop: {emergencyStop ? "ACTIVE" : "OFF"}</li>
-        <li>Circuit Breaker: {circuitBreakerActive ? "ACTIVE" : "OFF"}</li>
-      </ul>
-    </div>
+    <section className="office-dashboard" aria-label="Painel de métricas e governança">
+      <div className="office-dashboard-heading">
+        <div>
+          <p className="eyebrow">Modo demonstração</p>
+          <h2>Visão operacional</h2>
+        </div>
+        <span className="demo-badge">FIXTURE LOCAL</span>
+      </div>
+      <div className="financial-grid">
+        <article className="metric-card metric-card-real">
+          <span>Caixa REAL</span>
+          <strong>{formatCurrency(financial.real.cashCents)}</strong>
+          <small>Reserva {formatCurrency(financial.real.reserveCents)}</small>
+        </article>
+        <article className="metric-card metric-card-simulation">
+          <span>Caixa SIMULATION</span>
+          <strong>{formatCurrency(financial.simulation.cashCents)}</strong>
+          <small>Reserva {formatCurrency(financial.simulation.reserveCents)}</small>
+        </article>
+      </div>
+      <div className="governance-row" aria-label="Sinais de governança">
+        <span className={governance.autonomyEnabled ? 'status-chip is-on' : 'status-chip'}>{governance.autonomyEnabled ? 'Autonomia ativa' : 'Autonomia desativada'}</span>
+        <span className={governance.autoSpendEnabled ? 'status-chip is-on' : 'status-chip'}>{governance.autoSpendEnabled ? 'Auto-spend ativo' : 'Auto-spend desativado'}</span>
+        <span className={governance.emergencyStop ? 'status-chip is-stop' : 'status-chip'}>{governance.emergencyStop ? 'Emergency Stop ativo' : 'Emergency Stop inativo'}</span>
+        <span className={governance.circuitBreaker === 'OPEN' ? 'status-chip is-stop' : 'status-chip'}>{circuitBreakerLabel(governance.circuitBreaker)}</span>
+      </div>
+    </section>
   );
-};
-
-export default Dashboard;
+}

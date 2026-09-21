@@ -1,40 +1,35 @@
-import React from "react";
-import { OfficeDataProvider } from "./context/OfficeDataContext";
-import { SelectionProvider } from "./context/SelectionContext";
-import Dashboard from "./components/Dashboard";
-import Inspector from "./components/Inspector";
-import Timeline from "./components/Timeline";
-import OfficeCanvas from "./components/OfficeCanvas";
-import "./App.css";
+import type { OfficeDataSource } from './data/OfficeDataSource';
+import { OfficeDataProvider } from './context/OfficeDataContext';
+import { SelectionProvider } from './context/SelectionContext';
+import Dashboard from './components/Dashboard';
+import Inspector from './components/Inspector';
+import OfficeCanvas from './components/OfficeCanvas';
+import Timeline from './components/Timeline';
+import { officeThemeStyle } from './office/theme';
+import './App.css';
 
-function App() {
+export default function App({ dataSource }: { dataSource: OfficeDataSource }) {
   return (
-    <OfficeDataProvider>
+    <OfficeDataProvider dataSource={dataSource}>
       <SelectionProvider>
-        <div className="m7-ui-root">
-          <header className="m7-header">
-            <h1>M7 Office UI</h1>
+        <div className="office-app" style={officeThemeStyle}>
+          <header className="office-header">
+            <div>
+              <p className="eyebrow">Escritório Autônomo</p>
+              <h1>Centro de operações</h1>
+            </div>
+            <p>Projeção visual read-only · dados locais de demonstração</p>
           </header>
-          <main className="m7-main">
-            <section className="m7-dashboard">
-              <Dashboard />
-            </section>
-            <section className="m7-canvas">
+          <main>
+            <Dashboard />
+            <div className="office-workspace">
               <OfficeCanvas />
-            </section>
-            <section className="m7-inspector">
               <Inspector />
-            </section>
-            <section className="m7-timeline">
-              <Timeline />
-            </section>
+            </div>
+            <Timeline />
           </main>
         </div>
       </SelectionProvider>
     </OfficeDataProvider>
   );
 }
-
-export default App;
-
-
