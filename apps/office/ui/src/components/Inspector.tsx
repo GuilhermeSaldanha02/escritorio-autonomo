@@ -11,7 +11,7 @@ export default function Inspector() {
 
   const agent = snapshot.agents.find((candidate) => candidate.id === selectedAgentId);
   if (agent === undefined) {
-    return <aside className="office-inspector empty-inspector"><p>Selecione um agente no mapa para inspecionar seu estado.</p></aside>;
+    return <aside className="office-inspector empty-inspector"><p>Selecione um agente no escritório para visualizar seu estado.</p></aside>;
   }
 
   const visual = visualStateResolver(agent.state);

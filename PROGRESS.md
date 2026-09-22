@@ -3,9 +3,9 @@
 ## ESTADO ATUAL
 
 - **Última sessão:** 2026-09-22 · agente: codex · branch: `feat/m7-office-ui`.
-- **O que foi feito:** reconstrução visual do Canvas: cenário pixel-art original, paredes físicas, seis ambientes mobiliados, quatro personagens humanos sentados, nove mesas completas, sombras e materiais. Rotas de PROBATION passam pelas portas, sprite permanece inteiro e o monitor liga ao sentar. Seleção não recria o Phaser; resize atualiza as coordenadas de clique.
+- **O que foi feito:** cenário da reconstrução aprovado pelo dono; polish final restrito a seis placas discretas, luzes/sinalização nos corredores e texto vazio do Inspector. Personagens, mobiliário, planta e lógica preservados.
 - **Verificado:** UI unit `9 arquivos / 28 testes`; suíte raiz `49 arquivos / 379 testes`; typecheck, lint, build; quatro seleções/Inspectors, desktop 1440 px, mobile 390 px, zoom, arraste e demonstração PROBATION. Console sem erros/avisos e rede somente local. Evidências em `qa/evidencias/M7-REBUILD/`.
-- **Em andamento:** implementação pronta para revisão visual do dono; registro próprio permanece ALEGADO.
+- **Em andamento:** polish pronto para aceite visual independente; seleção dos quatro agentes capturada em `qa/evidencias/M7-POLISH/`. Registro próprio permanece ALEGADO.
 - **Não commitado:** nada.
 - **Bloqueado / a decidir:** aprovação visual independente; a verificação desta rodada foi feita pelo próprio implementador com Playwright.
 - **Próximo passo:** revisão independente com evidências cruas e decisão futura em M7-INTEGRATION.

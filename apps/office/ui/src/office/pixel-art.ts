@@ -146,6 +146,14 @@ export class PixelPainter {
 }
 
 export function paintOffice(p: PixelPainter, model: OfficeSceneModel) {
+  const roomSigns: Record<string, string> = {
+    'room-prospecting': 'Prospecção',
+    'room-boardroom': 'Diretoria',
+    'room-breakroom': 'Café / Descompressão',
+    'room-engineering': 'Engenharia',
+    'room-qa-review': 'Auditoria / Revisão',
+    'room-servers': 'Servidores / Infraestrutura',
+  };
   const { tileSize: t, canvasWidth: w, canvasHeight: h } = model.layout.grid;
   p.rect(0, 0, w, h, c.ink);
   // One continuous circulation floor, visible between the enclosed rooms.
@@ -154,6 +162,14 @@ export function paintOffice(p: PixelPainter, model: OfficeSceneModel) {
       p.rect(x, y, 19, 9, c.corridor);
       p.rect(x + 2, y + 1, 16, 1, c.steelLight);
     }
+  // Recessed floor lights and painted wayfinding leave the circulation clear.
+  for (const x of [65, 305, 565, 735]) {
+    p.rect(x, 222, 18, 3, c.ink);
+    p.rect(x + 2, 223, 14, 1, c.lamp);
+    p.rect(x + 7, 233, 5, 1, c.paperShade);
+    p.rect(x + 10, 232, 1, 3, c.paperShade);
+    p.rect(x + 9, 231, 1, 5, c.paperShade);
+  }
   for (const room of model.rooms) {
     const { x: col, y: row, width, height } = room.bounds;
     const x = col * t,
@@ -207,6 +223,24 @@ export function paintOffice(p: PixelPainter, model: OfficeSceneModel) {
     p.rect(x + 17, y + 10, 7, 8, c.paper);
     p.rect(x + 20, y + 11, 1, 4, c.ink);
     p.rect(x + 20, y + 15, 3, 1, c.ink);
+    const sign = roomSigns[room.id];
+    if (sign) {
+      p.ctx.save();
+      p.ctx.font = '8px monospace';
+      p.ctx.textBaseline = 'top';
+      const signWidth = Math.ceil(p.ctx.measureText(sign).width) + 16;
+      // Rear wall upstairs; low front wall downstairs keeps door openings free.
+      const signX = doorTop ? Math.round(x + (rw - signWidth) / 2) : x + 33;
+      const signY = doorTop ? y + rh - 17 : y + 8;
+      p.rect(signX + 1, signY + 2, signWidth, 12, c.shadow);
+      p.rect(signX, signY, signWidth, 12, c.ink);
+      p.rect(signX, signY, signWidth, 1, c.steelLight);
+      p.rect(signX + 2, signY + 5, 1, 1, c.steelLight);
+      p.rect(signX + signWidth - 3, signY + 5, 1, 1, c.steelLight);
+      p.ctx.fillStyle = c.paper;
+      p.ctx.fillText(sign, signX + 8, signY + 2);
+      p.ctx.restore();
+    }
     if (room.id === 'room-prospecting') {
       p.board(x + 42, y + 34, 78);
       p.shelf(x + rw - 48, y + 33);

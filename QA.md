@@ -10,6 +10,22 @@
 
 ## Limitação do registro
 
+### Polish final — 2026-09-22
+
+Cenário anterior aprovado pelo dono. Acrescentadas somente seis placas,
+luzes embutidas/sinalização no corredor e correção do texto vazio do Inspector.
+Sprites existentes preservados: Caçador azul/headset, Diretor violeta/cabelo
+claro, Desenvolvedor verde/cabelo escuro e Revisor dourado/cabelo castanho.
+
+Os quatro agentes foram selecionados individualmente e os quatro Inspectors
+inspecionados visualmente: identidade, estado, estação e tarefa corretos;
+um único canvas preservado em todas as seleções. Capturas e console/rede em
+`qa/evidencias/M7-POLISH/`. Console: zero erros/avisos.
+Revisão do implementador: ALEGADO; aguarda aceite visual independente.
+
+Checks desta rodada: suíte raiz 49 arquivos/379 testes, typecheck, lint e
+build UI passaram. Persiste somente o aviso conhecido de tamanho do chunk Phaser.
+
 O repositório não possui `scripts/qa-obsoletos.mjs`. A reconstrução possui provas
 cruas em `qa/evidencias/M7-REBUILD/`, mas permanece `ALEGADO` por ter sido
 verificada pelo próprio implementador. Uma passada independente ainda é

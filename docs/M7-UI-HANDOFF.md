@@ -2,6 +2,12 @@
 
 ## Entrega
 
+Polish após aprovação do cenário: seis placas pixel-art de salas, iluminação e
+sinalização discretas nos corredores, texto vazio do Inspector corrigido para
+"Selecione um agente no escritório para visualizar seu estado.". Quatro
+personagens preservados e quatro Inspectors validados. Screenshots finais em
+`qa/evidencias/M7-POLISH/`. Nenhuma reconstrução adicional ou mudança de lógica.
+
 - Branch: `feat/m7-office-ui`
 - Commit: `6256ad9 feat(m7-ui): concluir painel fixture-driven`
 - Base: `f468625` (`staging`/`main` com M6 integrado)
