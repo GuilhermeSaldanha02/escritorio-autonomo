@@ -8,6 +8,18 @@
 | M7-BUILD | Typecheck, lint e build do UI | ALEGADO | rodada 2026-09-22 | todos passaram; aviso não bloqueante de chunk Phaser |
 | M7-VISUAL | Cenário, personagens, Inspector/Timeline e segurança de texto | ALEGADO | rodada 2026-09-22 | `qa/evidencias/M7-REBUILD/`; prova do próprio implementador |
 
+## Fechamento documental — 2026-09-22
+
+O dono aprovou a implementação visual final no commit `03e8b1f` para encerramento
+do escopo M7-UI. A aprovação do dono não altera automaticamente os estados
+`ALEGADO` abaixo: eles seguem assim porque as provas foram coletadas pelo
+implementador e ainda não há aceite externo independente registrado.
+
+Validação final: 49 arquivos/379 testes passaram; typecheck, lint e build UI
+passaram. O build mantém o warning conhecido de chunk Phaser acima de 500 kB.
+As evidências versionadas estão em `qa/evidencias/M7-REBUILD/` e
+`qa/evidencias/M7-POLISH/`. `.env` continuou ignorado e fora do Git.
+
 ## Limitação do registro
 
 ### Polish final — 2026-09-22

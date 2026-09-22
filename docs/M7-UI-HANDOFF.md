@@ -14,6 +14,7 @@ personagens preservados e quatro Inspectors validados. Screenshots finais em
 - Checkpoint anterior preservado: `baa54ca`
 - Commit visual atual: `6110674 feat(m7-ui): transformar office em pixel art operacional`
 - Checkpoint de polimento: `960db6e feat(m7-ui): polir protagonista visual do office`.
+- Commit final de polish aprovado: `03e8b1f feat(m7-ui): Finalize placas e detalhes do escritório`.
 
 ## Reconstrução visual — 2026-09-22
 
@@ -56,6 +57,13 @@ workstation; `PROBATION` mantém uma rota visual de entrada.
 Não foram adicionados backend, API, WebSocket, fonte viva, cursor/resync,
 persistência, Agent Factory, novos eventos, migrations, ações financeiras ou
 regras de Governor. A fixture é somente demonstrativa e a UI é read-only.
+
+## Fechamento
+
+O dono aprovou o M7-UI no commit `03e8b1f`. A branch está pronta para
+planejamento de integração separado. Não iniciar M7-INTEGRATION nesta etapa.
+Os estados de QA permanecem `ALEGADO` quando dependem de aceite externo ainda
+não registrado. O warning conhecido do build é o chunk Phaser acima de 500 kB.
 
 ## Próxima revisão
 

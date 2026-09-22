@@ -3,12 +3,12 @@
 ## ESTADO ATUAL
 
 - **Última sessão:** 2026-09-22 · agente: codex · branch: `feat/m7-office-ui`.
-- **O que foi feito:** cenário da reconstrução aprovado pelo dono; polish final restrito a seis placas discretas, luzes/sinalização nos corredores e texto vazio do Inspector. Personagens, mobiliário, planta e lógica preservados.
-- **Verificado:** UI unit `9 arquivos / 28 testes`; suíte raiz `49 arquivos / 379 testes`; typecheck, lint, build; quatro seleções/Inspectors, desktop 1440 px, mobile 390 px, zoom, arraste e demonstração PROBATION. Console sem erros/avisos e rede somente local. Evidências em `qa/evidencias/M7-REBUILD/`.
-- **Em andamento:** polish pronto para aceite visual independente; seleção dos quatro agentes capturada em `qa/evidencias/M7-POLISH/`. Registro próprio permanece ALEGADO.
+- **O que foi feito:** M7-UI encerrado com aprovação do dono no commit `03e8b1f`; o polish final contém somente seis placas, luzes/sinalização discretas e correção do texto vazio do Inspector. Personagens, mobiliário, planta e lógica foram preservados.
+- **Verificado:** UI unit `9 arquivos / 28 testes`; suíte raiz `49 arquivos / 379 testes`; typecheck, lint e build confirmados no fechamento; evidências em `qa/evidencias/M7-REBUILD/` e `qa/evidencias/M7-POLISH/`.
+- **Em andamento:** nada no escopo M7-UI; milestone pronto para planejamento de integração. QA externo permanece ALEGADO.
 - **Não commitado:** nada.
-- **Bloqueado / a decidir:** aprovação visual independente; a verificação desta rodada foi feita pelo próprio implementador com Playwright.
-- **Próximo passo:** revisão independente com evidências cruas e decisão futura em M7-INTEGRATION.
+- **Bloqueado / a decidir:** nenhuma alteração visual pendente; aceite externo de QA ainda não foi promovido a PASSOU.
+- **Próximo passo:** planejamento separado de M7-INTEGRATION, mediante decisão própria; não iniciar nesta etapa.
 - **Para o outro agente saber:** arte original em `pixel-art.ts`, paleta de materiais em `art-tokens.ts`; contratos/data source/resolver preservados. Não fazer merge/rebase ou integração viva. PROBATION foi exercitado em cópia da fixture no navegador, sem persistência nem alteração do snapshot original.
 
 ## PAINEL
