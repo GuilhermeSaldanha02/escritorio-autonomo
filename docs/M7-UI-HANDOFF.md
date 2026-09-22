@@ -7,6 +7,7 @@
 - Base: `f468625` (`staging`/`main` com M6 integrado)
 - Checkpoint anterior preservado: `baa54ca`
 - Commit visual atual: `6110674 feat(m7-ui): transformar office em pixel art operacional`
+- Rodada de polimento pendente de checkpoint: Office protagonista sem seleção e Inspector contextual.
 
 ## Rodada visual final em andamento
 
@@ -18,14 +19,16 @@ workstation; `PROBATION` mantém uma rota visual de entrada.
 
 ## Verificações executadas
 
-- `pnpm --filter ui run test:unit`: 8 arquivos, 25 testes.
-- `pnpm run test:unit`: 48 arquivos, 376 testes.
+- `pnpm --filter ui run test:unit`: 9 arquivos, 27 testes.
+- `pnpm run test:unit`: 49 arquivos, 378 testes.
 - `pnpm run typecheck`.
 - `pnpm run lint`.
 - `pnpm --filter ui run build`.
 - Gate visual local em `http://localhost:5173/`: conteúdo presente, canvas Phaser
   montado com escritório mobiliado e personagens pixelados, Dashboard/Timeline
   visíveis e nenhum overlay de erro.
+- Composição final: o Office ocupa a largura disponível quando nenhum agente está
+  selecionado; o Inspector só reserva uma coluna dedicada durante a inspeção.
 
 ## Limites preservados
 

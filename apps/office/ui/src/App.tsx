@@ -5,8 +5,21 @@ import Dashboard from './components/Dashboard';
 import Inspector from './components/Inspector';
 import OfficeCanvas from './components/OfficeCanvas';
 import Timeline from './components/Timeline';
+import { useSelection } from './context/SelectionContext';
 import { officeThemeStyle } from './office/theme';
+import { getWorkspaceClassName } from './workspace-layout';
 import './App.css';
+
+function OfficeWorkspace() {
+  const { selectedAgentId } = useSelection();
+
+  return (
+    <div className={getWorkspaceClassName(selectedAgentId)}>
+      <OfficeCanvas />
+      <Inspector />
+    </div>
+  );
+}
 
 export default function App({ dataSource }: { dataSource: OfficeDataSource }) {
   return (
@@ -22,10 +35,7 @@ export default function App({ dataSource }: { dataSource: OfficeDataSource }) {
           </header>
           <main>
             <Dashboard />
-            <div className="office-workspace">
-              <OfficeCanvas />
-              <Inspector />
-            </div>
+            <OfficeWorkspace />
             <Timeline />
           </main>
         </div>
