@@ -9,7 +9,22 @@
 - Commit visual atual: `6110674 feat(m7-ui): transformar office em pixel art operacional`
 - Checkpoint de polimento: `960db6e feat(m7-ui): polir protagonista visual do office`.
 
-## Rodada visual final em andamento
+## Reconstrução visual — 2026-09-22
+
+O desenho anterior foi substituído por texturas pixel-art originais construídas
+em canvas: paredes com espessura, portas, pisos, móveis com profundidade e
+personagens humanos orientados para os monitores. Não há dependência de assets
+de terceiros nem de nomes/contornos coloridos para reconhecer as salas.
+
+Movimento agora percorre cada waypoint com o personagem inteiro. O monitor da
+mesa de destino liga ao fim da entrada PROBATION. A seleção atualiza a cena sem
+recriar o jogo e o ResizeObserver mantém as coordenadas dos cliques corretas.
+O canvas não impõe mais altura mínima que criava uma área vazia abaixo da planta.
+
+Provas: `qa/evidencias/M7-REBUILD/`. A autoria da revisão é do implementador,
+portanto o aceite independente segue pendente, sem alegação de QA externo.
+
+## Histórico da primeira rodada visual
 
 O renderer Phaser foi elevado de um diagrama de salas para um escritório
 top-down original: pisos, paredes espessas, corredores, portas, mobiliário,
@@ -19,8 +34,8 @@ workstation; `PROBATION` mantém uma rota visual de entrada.
 
 ## Verificações executadas
 
-- `pnpm --filter ui run test:unit`: 9 arquivos, 27 testes.
-- `pnpm run test:unit`: 49 arquivos, 378 testes.
+- `pnpm --filter ui run test:unit`: 9 arquivos, 28 testes.
+- `pnpm run test:unit`: 49 arquivos, 379 testes.
 - `pnpm run typecheck`.
 - `pnpm run lint`.
 - `pnpm --filter ui run build`.

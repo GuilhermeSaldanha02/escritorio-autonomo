@@ -2,14 +2,14 @@
 
 ## ESTADO ATUAL
 
-- **Última sessão:** 2026-09-21 · agente: codex · branch: `feat/m7-office-ui`.
-- **O que foi feito:** checkpoint M7 preservado e branch reconciliada sobre `staging`/`f468625`; fixture-driven data source, contrato de estados, escritório top-down pixel-art original, scene model determinístico, Phaser, Dashboard, Inspector, Timeline, tokens visuais e o polimento final de composição foram concluídos.
-- **Verificado:** UI unit `9 arquivos / 27 testes`; suíte raiz `49 arquivos / 378 testes`; typecheck monorepo; lint geral; build UI; prévia local com mapa protagonista quando não há seleção.
-- **Em andamento:** aguardando revisão independente do QA visual.
+- **Última sessão:** 2026-09-22 · agente: codex · branch: `feat/m7-office-ui`.
+- **O que foi feito:** reconstrução visual do Canvas: cenário pixel-art original, paredes físicas, seis ambientes mobiliados, quatro personagens humanos sentados, nove mesas completas, sombras e materiais. Rotas de PROBATION passam pelas portas, sprite permanece inteiro e o monitor liga ao sentar. Seleção não recria o Phaser; resize atualiza as coordenadas de clique.
+- **Verificado:** UI unit `9 arquivos / 28 testes`; suíte raiz `49 arquivos / 379 testes`; typecheck, lint, build; quatro seleções/Inspectors, desktop 1440 px, mobile 390 px, zoom, arraste e demonstração PROBATION. Console sem erros/avisos e rede somente local. Evidências em `qa/evidencias/M7-REBUILD/`.
+- **Em andamento:** implementação pronta para revisão visual do dono; registro próprio permanece ALEGADO.
 - **Não commitado:** nada.
-- **Bloqueado / a decidir:** a prova visual ainda é `ALEGADO`, conforme regra do projeto; não há CLI `agent-browser` instalado. Integração viva/backend permanece fora do escopo.
+- **Bloqueado / a decidir:** aprovação visual independente; a verificação desta rodada foi feita pelo próprio implementador com Playwright.
 - **Próximo passo:** revisão independente com evidências cruas e decisão futura em M7-INTEGRATION.
-- **Para o outro agente saber:** não fazer merge/rebase adicional, não tocar `.env`, não introduzir rede/backend; o Office ocupa toda a largura quando não há seleção e o Inspector abre em coluna somente após selecionar um agente.
+- **Para o outro agente saber:** arte original em `pixel-art.ts`, paleta de materiais em `art-tokens.ts`; contratos/data source/resolver preservados. Não fazer merge/rebase ou integração viva. PROBATION foi exercitado em cópia da fixture no navegador, sem persistência nem alteração do snapshot original.
 
 ## PAINEL
 

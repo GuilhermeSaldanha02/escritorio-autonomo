@@ -4,16 +4,16 @@
 
 | ID | Área | Estado | Commit de verificação | Evidência |
 | --- | --- | --- | --- | --- |
-| M7-UNIT | Data source, fixture, resolver, scene model e blueprint visual | ALEGADO | rodada 2026-09-21 | 49 arquivos / 378 testes; prova do próprio implementador |
-| M7-BUILD | Typecheck, lint e build do UI | ALEGADO | rodada 2026-09-21 | todos passaram; aviso não bloqueante de chunk Phaser |
-| M7-VISUAL | Dashboard, escritório top-down, personagens, Inspector/Timeline e segurança de texto | ALEGADO | rodada 2026-09-21 | painel atualizado em `localhost:5173`; prova do próprio implementador |
+| M7-UNIT | Data source, fixture, resolver, scene model e blueprint visual | ALEGADO | rodada 2026-09-22 | 49 arquivos / 379 testes; prova do próprio implementador |
+| M7-BUILD | Typecheck, lint e build do UI | ALEGADO | rodada 2026-09-22 | todos passaram; aviso não bloqueante de chunk Phaser |
+| M7-VISUAL | Cenário, personagens, Inspector/Timeline e segurança de texto | ALEGADO | rodada 2026-09-22 | `qa/evidencias/M7-REBUILD/`; prova do próprio implementador |
 
 ## Limitação do registro
 
-O repositório ainda não possui `scripts/qa-obsoletos.mjs` nem evidências
-cruas versionadas em `qa/evidencias/<ID>/`. Por isso os itens permanecem
-`ALEGADO`; uma passada independente deve anexar `print.png`, `console.txt` e
-`rede.txt` antes de promover qualquer item para `PASSOU`.
+O repositório não possui `scripts/qa-obsoletos.mjs`. A reconstrução possui provas
+cruas em `qa/evidencias/M7-REBUILD/`, mas permanece `ALEGADO` por ter sido
+verificada pelo próprio implementador. Uma passada independente ainda é
+necessária para promover o resultado para `PASSOU`.
 
 ## Rodada técnica — 2026-09-21
 
