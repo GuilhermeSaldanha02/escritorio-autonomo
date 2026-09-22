@@ -7,7 +7,7 @@
 - Base: `f468625` (`staging`/`main` com M6 integrado)
 - Checkpoint anterior preservado: `baa54ca`
 - Commit visual atual: `6110674 feat(m7-ui): transformar office em pixel art operacional`
-- Rodada de polimento pendente de checkpoint: Office protagonista sem seleção e Inspector contextual.
+- Checkpoint de polimento: `960db6e feat(m7-ui): polir protagonista visual do office`.
 
 ## Rodada visual final em andamento
 
