@@ -44,6 +44,9 @@ importers:
       '@escritorio/memory':
         specifier: workspace:*
         version: link:packages/memory
+      '@escritorio/office-contract':
+        specifier: workspace:*
+        version: link:packages/office-contract
       '@escritorio/shared':
         specifier: workspace:*
         version: link:packages/shared
@@ -95,9 +98,15 @@ importers:
       '@escritorio/events':
         specifier: workspace:*
         version: link:../../packages/events
+      '@escritorio/finance':
+        specifier: workspace:*
+        version: link:../../packages/finance
       '@escritorio/governor':
         specifier: workspace:*
         version: link:../../packages/governor
+      '@escritorio/office-contract':
+        specifier: workspace:*
+        version: link:../../packages/office-contract
       '@escritorio/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -351,6 +360,12 @@ importers:
       '@escritorio/database':
         specifier: workspace:*
         version: link:../../infrastructure/database
+
+  packages/office-contract:
+    dependencies:
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
 
   packages/shared:
     dependencies:

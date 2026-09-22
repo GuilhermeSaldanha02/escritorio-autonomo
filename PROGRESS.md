@@ -1,15 +1,15 @@
-# Painel de acompanhamento — M7-UI
+# Painel de acompanhamento — M7-INTEGRATION
 
 ## ESTADO ATUAL
 
-- **Última sessão:** 2026-09-22 · agente: codex · branch: `feat/m7-office-ui`.
-- **O que foi feito:** auditoria estática de M1–M6 e do Office em `a28140f`; plano técnico em `docs/M7-INTEGRATION-PLAN.md`. M7-UI continua encerrado/aprovado em `03e8b1f`, sem alterações de visual ou implementação.
-- **Verificado:** UI unit `9 arquivos / 28 testes`; suíte raiz `49 arquivos / 379 testes`; typecheck, lint e build confirmados no fechamento; evidências em `qa/evidencias/M7-REBUILD/` e `qa/evidencias/M7-POLISH/`.
-- **Em andamento:** plano M7-INTEGRATION pronto para revisão do owner; implementação NÃO iniciada. QA externo do M7-UI permanece ALEGADO; esta auditoria não valida operação viva.
-- **Não commitado:** nada.
-- **Bloqueado / a decidir:** aprovar projeção/journal próprios, limites de telemetria, mínimos ajustes de modo/stale/cena, conteúdo externo omitido e acesso loopback; detalhes na seção 14 do plano. Não há cursor global confiável no Event Bus/outbox atual.
-- **Próximo passo:** owner revisar o plano e definir branch/autoridade de execução; não implementar, fazer merge ou incorporar PREP automaticamente.
-- **Para o outro agente saber:** main/staging remotas confirmadas em `f468625`; Caçador/Diretor não reportam estado como desenvolvimento/revisão; UI recria Game a cada snapshot. Plano propõe reconciliação persistida sem alterar regras M1–M6. `.env` não foi lido; testes de integração atuais o carregam e exigem ambiente isolado antes de executar. Arte, contratos e backend permanecem intocados.
+- **Última sessão:** 2026-09-22 · agente: codex · branch: `codex/m7-integration`, worktree `C:/escritorio-autonomo-m7-integration`.
+- **O que foi feito:** branch isolada de `2422832`; trabalho parcial de Locke preservado e completado no contrato 2.0.0 e mappers puros da etapa 1. M7-UI segue intacto na branch original. Migration 0014 livre.
+- **Verificado:** suíte raiz `51 arquivos / 388 testes`, typecheck e lint verdes após etapa 1; contrato focado `9 testes`; banco `office_m7_test` descartável e Redis próprios, sem volumes do owner.
+- **Em andamento:** etapa 2 — persistência/journal; depois REST/WS, adapter, cena e matriz I01–I18. QA independente permanece ALEGADO.
+- **Não commitado:** alterações válidas da etapa 1 aguardam checkpoint imediato.
+- **Bloqueado / a decidir:** nenhum pedido de ampliação de escopo. Banco/Redis de teste são containers próprios `codex-m7-pg-test` e `codex-m7-redis-test`, sem volumes do owner.
+- **Próximo passo:** checkpoint da etapa 1 e testes vermelhos da etapa 2 no banco descartável. Sem merge ou M8.
+- **Para o outro agente saber:** `packages/office-contract` é browser-safe; mappers LIVE omitem texto externo livre. Caçador/Diretor não têm telemetria de execução equivalente; UI ainda recria Game a cada snapshot. A etapa 2 deve usar head+journal+receipts com lock antes de leituras. `.env` não foi lido; testes de integração só com `TEST_DATABASE_URL` para `office_m7_test` e Redis isolado.
 
 ## PAINEL
 

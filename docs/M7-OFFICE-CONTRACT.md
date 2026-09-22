@@ -35,8 +35,25 @@ conhecem a implementação concreta da fixture.
 - Eventos `UNTRUSTED_EXTERNAL` são renderizados como texto React, sem
   `innerHTML`.
 
-## Limite para M7-INTEGRATION
+## Reconciliação M7-INTEGRATION (contrato 2.0.0)
 
-A troca da fixture por uma fonte viva, resync/cursor, persistência,
-telemetria operacional e ações de governança pertencem à etapa de integração
-posterior.
+O contrato 1.0.0 descrito na preparação histórica não foi implementado e não
+é compatível com o Office visual. O pacote browser-safe
+`packages/office-contract` formaliza a forma camelCase já usada pela UI,
+sem transportar payloads do domínio. `OfficeSnapshot` admite `DEMO` e `LIVE`;
+datas sem evidência são `null`, campos financeiros e governança indisponíveis
+também são `null`, e a metadata distingue qualidade e conexão. A fixture
+permanece DEMO; ela não é fallback silencioso para LIVE.
+
+O transporte LIVE usa envelope `{contractVersion, streamCursor, revision,
+snapshot}` com revisão decimal exata e cursor opaco `v2.<epoch>.<revision>`.
+`OFFICE_UPDATED` substitui seções completas e exige `baseCursor` consecutivo;
+`SUBSCRIBE`, `SYNC_START`, `SYNC_COMPLETE`, `FULL_RESYNC_REQUIRED` e
+`HEARTBEAT` são mensagens de rede, distintas do `OfficeEvent` local de
+invalidação. A estratégia operacional de journal/replay e seus limites estão
+em `docs/M7-INTEGRATION-PLAN.md`.
+
+No LIVE inicial, nomes/responsabilidades dos quatro fundadores vêm somente
+de metadata pública por ID, objetivos de tarefa são templates locais e a
+timeline é uma allowlist de tipos/IDs/datas. Texto externo livre e payloads
+não entram no DTO. Nenhum dado LIVE é prova de liveness do Worker.
