@@ -73,6 +73,10 @@
   background: var(--office-surface);
 }
 
+.office-dashboard {
+  padding: var(--space-3);
+}
+
 .office-dashboard,
 .office-inspector,
 .office-timeline {
@@ -126,14 +130,16 @@
 .governance-row { flex-wrap: wrap; margin-top: var(--space-4); }
 
 .office-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
   align-items: stretch;
   margin-top: var(--space-4);
 }
 
-.office-canvas-shell { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.office-canvas-shell { min-width: 0; min-height: 42rem; overflow: hidden; }
 .office-canvas-toolbar { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--office-border); font-family: var(--office-mono); font-size: 0.72rem; }
-.office-canvas { min-height: 30rem; overflow: auto; }
-.office-canvas canvas { display: block; max-width: 100%; height: auto !important; image-rendering: pixelated; }
+.office-canvas { display: grid; min-height: 42rem; place-items: start center; overflow: auto; background: var(--office-bg); }
+.office-canvas canvas { display: block; width: 100% !important; max-width: 72rem; height: auto !important; image-rendering: pixelated; }
 
 .office-inspector { flex: 0 1 19rem; min-width: 15rem; }
 .empty-inspector { display: grid; place-items: center; color: var(--office-muted); }
@@ -158,7 +164,7 @@
 @media (max-width: 62rem) {
   .office-app { padding: var(--space-4); }
   .office-header,
-  .office-workspace { align-items: stretch; flex-direction: column; }
+  .office-workspace { grid-template-columns: 1fr; }
   .office-inspector { flex-basis: auto; }
 }
 

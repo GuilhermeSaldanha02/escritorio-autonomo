@@ -4,9 +4,9 @@
 
 | ID | Área | Estado | Commit de verificação | Evidência |
 | --- | --- | --- | --- | --- |
-| M7-UNIT | Data source, fixture, resolver e scene model | ALEGADO | `11dc35f` + rodada 2026-09-21 | 47 arquivos / 374 testes; prova do próprio implementador |
-| M7-BUILD | Typecheck, lint e build do UI | ALEGADO | `11dc35f` + rodada 2026-09-21 | todos passaram; aviso não bloqueante de chunk Phaser |
-| M7-VISUAL | Dashboard, canvas, Inspector/Timeline e segurança de texto | ALEGADO | `11dc35f` + rodada 2026-09-21 | painel ativo em `localhost:5173`; prova do próprio implementador |
+| M7-UNIT | Data source, fixture, resolver, scene model e blueprint visual | ALEGADO | rodada 2026-09-21 | 48 arquivos / 376 testes; prova do próprio implementador |
+| M7-BUILD | Typecheck, lint e build do UI | ALEGADO | rodada 2026-09-21 | todos passaram; aviso não bloqueante de chunk Phaser |
+| M7-VISUAL | Dashboard, escritório top-down, personagens, Inspector/Timeline e segurança de texto | ALEGADO | rodada 2026-09-21 | painel atualizado em `localhost:5173`; prova do próprio implementador |
 
 ## Limitação do registro
 
@@ -23,4 +23,9 @@ cruas versionadas em `qa/evidencias/<ID>/`. Por isso os itens permanecem
 - `pnpm --filter ui run build`: passou; apenas aviso de chunk Phaser acima de
   500 kB.
 - Painel local: carregou com conteúdo, canvas Phaser e sem overlay de erro.
+- Renderer visual: piso, paredes, portas, corredores, mesas, cadeiras,
+  computadores, plantas, estantes, café, racks, painel de operações e
+  personagens pixelados originais.
+- Movimento visual: agentes são posicionados na cadeira da workstation; rota de
+  `PROBATION` continua visual e determinística.
 - O `.env` permaneceu ignorado e fora do Git.

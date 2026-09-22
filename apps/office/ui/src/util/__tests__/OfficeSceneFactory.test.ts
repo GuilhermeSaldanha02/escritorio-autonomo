@@ -37,6 +37,10 @@ describe('OfficeSceneFactory', () => {
     expect(model.workstations.filter((workstation) => workstation.status === 'EMPTY')).not.toHaveLength(0);
     expect(model.agents).toHaveLength(5);
     expect(model.agents.find((agent) => agent.id === 'NOVO-001')).toMatchObject({ workstationId: 'desk-pros-02' });
-    expect(model.agents.find((agent) => agent.id === 'NOVO-001')?.route.length).toBeGreaterThan(1);
+    const probationAgent = model.agents.find((agent) => agent.id === 'NOVO-001');
+    expect(probationAgent?.route.length).toBeGreaterThan(1);
+    expect(probationAgent?.route.at(-1)?.y).toBeGreaterThan(
+      model.workstations.find((workstation) => workstation.id === 'desk-pros-02')?.y ?? 0,
+    );
   });
 });

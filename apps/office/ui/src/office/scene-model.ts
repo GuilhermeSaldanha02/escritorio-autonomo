@@ -73,7 +73,7 @@ function toSceneWorkstations(layout: OfficeLayout): SceneWorkstation[] {
 }
 
 function routeTo(workstation: SceneWorkstation, isEntering: boolean): Array<{ x: number; y: number }> {
-  const destination = { x: workstation.x + 26, y: workstation.y - 8 };
+  const destination = { x: workstation.x + 26, y: workstation.y + 46 };
   if (!isEntering) return [destination];
 
   const entrance = { x: 16, y: 455 };

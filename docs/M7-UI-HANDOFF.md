@@ -1,21 +1,30 @@
 # M7-UI — Handoff para revisão
 
-## Entrega
+## Entrega anterior
 
 - Branch: `feat/m7-office-ui`
 - Commit: `6256ad9 feat(m7-ui): concluir painel fixture-driven`
 - Base: `f468625` (`staging`/`main` com M6 integrado)
 - Checkpoint anterior preservado: `baa54ca`
 
+## Rodada visual final em andamento
+
+O renderer Phaser foi elevado de um diagrama de salas para um escritório
+top-down original: pisos, paredes espessas, corredores, portas, mobiliário,
+plantas, estantes, café, racks, painel de operações e personagens pixelados
+distintos por agente. A posição final dos agentes fica na cadeira da
+workstation; `PROBATION` mantém uma rota visual de entrada.
+
 ## Verificações executadas
 
-- `pnpm --filter ui run test:unit`: 7 arquivos, 23 testes.
-- `pnpm run test:unit`: 47 arquivos, 374 testes.
+- `pnpm --filter ui run test:unit`: 8 arquivos, 25 testes.
+- `pnpm run test:unit`: 48 arquivos, 376 testes.
 - `pnpm run typecheck`.
 - `pnpm run lint`.
 - `pnpm --filter ui run build`.
 - Gate visual local em `http://localhost:5173/`: conteúdo presente, canvas Phaser
-  montado, Dashboard/Timeline visíveis e nenhum erro/warning no console.
+  montado com escritório mobiliado e personagens pixelados, Dashboard/Timeline
+  visíveis e nenhum overlay de erro.
 
 ## Limites preservados
 
