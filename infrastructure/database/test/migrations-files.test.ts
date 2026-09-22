@@ -29,6 +29,7 @@ describe('arquivos de migration', () => {
       '0011_memoria_performance',
       '0012_memories_scope_trust',
       '0013_autonomia',
+      '0014_office_projection',
     ]);
   });
 

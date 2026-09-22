@@ -103,7 +103,7 @@ export async function confirmPayment(pool: Pool, evidence: PaymentEvidence): Pro
  * somá-los dobraria o caixa. `scope = 'REAL'` é o único que responde por caixa
  * real: `SIMULATION` nunca entra nessa conta.
  */
-export async function ledgerBalanceCents(pool: Pool, scope: LedgerScope): Promise<number> {
+export async function ledgerBalanceCents(pool: Queryable, scope: LedgerScope): Promise<number> {
   const { rows } = await pool.query<{ balance: string }>(
     `SELECT COALESCE(SUM(CASE entry_type
                            WHEN 'REVENUE' THEN amount_cents
@@ -115,7 +115,11 @@ export async function ledgerBalanceCents(pool: Pool, scope: LedgerScope): Promis
       WHERE ledger_scope = $1`,
     [scope],
   );
-  return Number(rows[0]?.balance ?? 0);
+  const balance = BigInt(rows[0]?.balance ?? '0');
+  if (balance > BigInt(Number.MAX_SAFE_INTEGER) || balance < BigInt(Number.MIN_SAFE_INTEGER)) {
+    throw new RangeError('Ledger balance exceeds safe integer range');
+  }
+  return Number(balance);
 }
 
 /** Lê o estado atual do banco e roda a reconciliação — só detecta, nunca escreve. */

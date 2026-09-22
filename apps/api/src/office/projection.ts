@@ -31,6 +31,7 @@ export interface OfficeProjectionInput {
   agents: SourceAgent[];
   tasks: SourceTask[];
   events: OfficeSourceEvent[];
+  reviewEvidence?: OfficeSourceEvent[];
   pauses: SourcePause[];
   governance: OfficeGovernance | null;
   financial: { real: FinancialScopeSnapshot | null; simulation: FinancialScopeSnapshot | null };
@@ -52,7 +53,7 @@ export function projectOfficeSnapshot(input: OfficeProjectionInput): OfficeSnaps
     const eligible = agent.role === 'DESENVOLVEDOR'
       ? input.tasks.filter(task => task.assignedAgentId === agent.id && task.status === 'IN_PROGRESS')
       : agent.role === 'REVISOR'
-        ? input.tasks.filter(task => task.status === 'IN_REVIEW' && input.events.some(event =>
+        ? input.tasks.filter(task => task.status === 'IN_REVIEW' && (input.reviewEvidence ?? input.events).some(event =>
           event.taskId === task.id && event.agentId === agent.id &&
           (event.type === 'REVIEW_STARTED' || (event.type === 'AGENT_STATE_CHANGED' && event.applied === true && event.newState === 'REVIEWING'))))
         : [];
