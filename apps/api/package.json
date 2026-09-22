@@ -23,9 +23,13 @@
     "@escritorio/governor": "workspace:*",
     "@escritorio/office-contract": "workspace:*",
     "@escritorio/shared": "workspace:*",
+    "@fastify/websocket": "11.3.1",
     "bullmq": "^6.3.6",
     "fastify": "~5.12.4",
     "ioredis": "5.11.1",
     "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
   }
 }

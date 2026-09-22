@@ -3,13 +3,13 @@
 ## ESTADO ATUAL
 
 - **Última sessão:** 2026-09-22 · agente: codex · branch: `codex/m7-integration`, worktree `C:/escritorio-autonomo-m7-integration`.
-- **O que foi feito:** etapa 1 no commit `825e706`; migration 0014 e projeção persistida com head, journal e receipts implementadas em banco descartável, sem alterar tabelas de negócio. M7-UI segue intacto.
-- **Verificado:** suíte raiz `51 arquivos / 388 testes` após etapa 1; integração focada da etapa 2 `6 testes` (inclui commit tardio, concorrência, replay, retenção e up/down); typecheck/lint verdes antes do checkpoint. Banco `office_m7_test` e Redis próprios, sem volumes do owner.
-- **Em andamento:** fechar checkpoint da etapa 2; depois REST/WS, adapter, cena e matriz I01–I18. QA independente permanece ALEGADO.
-- **Não commitado:** etapa 2 aguardando gates/commit.
+- **O que foi feito:** contrato/projeção pura `825e706`; migration 0014, head+journal+receipts `758c75d`; REST snapshot e stream WS read-only com replay, origin/host loopback, projector 1 s e lifecycle de API. M7-UI segue intacto.
+- **Verificado:** suíte raiz `51 arquivos / 388 testes`; integração focada `3 arquivos / 11 testes` (commit tardio, concorrência, replay, segurança, retenção, up/down); typecheck, lint e build verdes; warning Phaser >500 kB conhecido. Banco `office_m7_test` e Redis próprios, sem volumes do owner.
+- **Em andamento:** checkpoint da etapa 3; depois adapter, cena e matriz I01–I18. QA independente permanece ALEGADO.
+- **Não commitado:** etapa 3 aguardando commit.
 - **Bloqueado / a decidir:** nenhum pedido de ampliação de escopo. Banco/Redis de teste são containers próprios `codex-m7-pg-test` e `codex-m7-redis-test`, sem volumes do owner.
-- **Próximo passo:** gates e checkpoint da etapa 2, depois testes vermelhos da etapa 3. Sem merge ou M8.
-- **Para o outro agente saber:** `apps/api/src/office/journal.ts` usa `REPEATABLE READ`, lock do head antes de ler domínio e anti-join por recibos; compara seções semanticamente (JSONB muda ordem de chaves). Caçador/Diretor sem telemetria equivalente; UI ainda recria Game. `.env` não foi lido; integração só com `TEST_DATABASE_URL` para `office_m7_test`.
+- **Próximo passo:** checkpoint da etapa 3, testes vermelhos do LiveOfficeDataSource, depois ligação mínima da UI. Sem merge ou M8.
+- **Para o outro agente saber:** `/office/snapshot` serve head persistido; `/office/stream` usa replay/tail do journal, sem Pub/Sub. Fastify WS 11.3.1 registrado antes das rotas. `main.ts` inicia projector após montar API, com `onClose`; não executar main contra config do owner. Caçador/Diretor sem telemetria equivalente; UI ainda recria Game. `.env` não foi lido; integração somente no `office_m7_test`.
 
 ## PAINEL
 
