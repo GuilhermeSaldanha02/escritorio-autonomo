@@ -3,13 +3,13 @@
 ## ESTADO ATUAL
 
 - **Última sessão:** 2026-09-22 · agente: codex · branch: `feat/m7-office-ui`.
-- **O que foi feito:** M7-UI encerrado com aprovação do dono no commit `03e8b1f`; o polish final contém somente seis placas, luzes/sinalização discretas e correção do texto vazio do Inspector. Personagens, mobiliário, planta e lógica foram preservados.
+- **O que foi feito:** auditoria estática de M1–M6 e do Office em `a28140f`; plano técnico em `docs/M7-INTEGRATION-PLAN.md`. M7-UI continua encerrado/aprovado em `03e8b1f`, sem alterações de visual ou implementação.
 - **Verificado:** UI unit `9 arquivos / 28 testes`; suíte raiz `49 arquivos / 379 testes`; typecheck, lint e build confirmados no fechamento; evidências em `qa/evidencias/M7-REBUILD/` e `qa/evidencias/M7-POLISH/`.
-- **Em andamento:** nada no escopo M7-UI; milestone pronto para planejamento de integração. QA externo permanece ALEGADO.
+- **Em andamento:** plano M7-INTEGRATION pronto para revisão do owner; implementação NÃO iniciada. QA externo do M7-UI permanece ALEGADO; esta auditoria não valida operação viva.
 - **Não commitado:** nada.
-- **Bloqueado / a decidir:** nenhuma alteração visual pendente; aceite externo de QA ainda não foi promovido a PASSOU.
-- **Próximo passo:** planejamento separado de M7-INTEGRATION, mediante decisão própria; não iniciar nesta etapa.
-- **Para o outro agente saber:** arte original em `pixel-art.ts`, paleta de materiais em `art-tokens.ts`; contratos/data source/resolver preservados. Não fazer merge/rebase ou integração viva. PROBATION foi exercitado em cópia da fixture no navegador, sem persistência nem alteração do snapshot original.
+- **Bloqueado / a decidir:** aprovar projeção/journal próprios, limites de telemetria, mínimos ajustes de modo/stale/cena, conteúdo externo omitido e acesso loopback; detalhes na seção 14 do plano. Não há cursor global confiável no Event Bus/outbox atual.
+- **Próximo passo:** owner revisar o plano e definir branch/autoridade de execução; não implementar, fazer merge ou incorporar PREP automaticamente.
+- **Para o outro agente saber:** main/staging remotas confirmadas em `f468625`; Caçador/Diretor não reportam estado como desenvolvimento/revisão; UI recria Game a cada snapshot. Plano propõe reconciliação persistida sem alterar regras M1–M6. `.env` não foi lido; testes de integração atuais o carregam e exigem ambiente isolado antes de executar. Arte, contratos e backend permanecem intocados.
 
 ## PAINEL
 
