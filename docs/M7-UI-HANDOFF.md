@@ -1,11 +1,12 @@
 # M7-UI — Handoff para revisão
 
-## Entrega anterior
+## Entrega
 
 - Branch: `feat/m7-office-ui`
 - Commit: `6256ad9 feat(m7-ui): concluir painel fixture-driven`
 - Base: `f468625` (`staging`/`main` com M6 integrado)
 - Checkpoint anterior preservado: `baa54ca`
+- Commit visual atual: `6110674 feat(m7-ui): transformar office em pixel art operacional`
 
 ## Rodada visual final em andamento
 
