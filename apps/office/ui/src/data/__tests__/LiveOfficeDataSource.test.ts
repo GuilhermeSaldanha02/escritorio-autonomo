@@ -24,9 +24,20 @@ class FakeSocket extends EventTarget {
   message(value: unknown) { this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) })); }
 }
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('LiveOfficeDataSource', () => {
+  it('usa o fetch global com o receptor Window no navegador', async () => {
+    let calls = 0;
+    vi.stubGlobal('fetch', function browserFetch(this: typeof globalThis) {
+      if (this !== globalThis) throw new TypeError('Illegal invocation');
+      calls++;
+      return Promise.resolve(new Response(JSON.stringify(envelope()), { status: 200 }));
+    });
+    const source = new LiveOfficeDataSource();
+    await expect(source.getSnapshot()).resolves.toMatchObject({ mode: 'LIVE' });
+    expect(calls).toBe(1);
+  });
   it('seleciona modo explícito sem transformar offline em fixture', () => {
     expect(createOfficeDataSource(undefined)).toBe(fixtureOfficeDataSource);
     expect(createOfficeDataSource('fixture')).toBe(fixtureOfficeDataSource);

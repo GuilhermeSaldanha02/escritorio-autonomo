@@ -30,7 +30,7 @@ export class LiveOfficeDataSource implements OfficeDataSource {
   #incompatible = false;
 
   constructor(options: LiveOptions = {}) {
-    this.#fetcher = options.fetcher ?? fetch;
+    this.#fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
     this.#socketFactory = options.socketFactory ?? (url => new WebSocket(url));
     this.#random = options.random ?? Math.random;
     this.#now = options.now ?? Date.now;
