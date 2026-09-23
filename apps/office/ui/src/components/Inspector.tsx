@@ -24,6 +24,7 @@ export default function Inspector() {
         <div><dt>Papel</dt><dd>{agent.role}</dd></div>
         <div><dt>Lifecycle</dt><dd>{agent.lifecycleStatus}</dd></div>
         <div><dt>Estado</dt><dd className="state-value" style={{ '--state-color': visual.color } as CSSProperties}>{visual.label}</dd></div>
+        {snapshot.mode === 'LIVE' && <div><dt>Disponibilidade</dt><dd>{agent.metadata?.availability === 'PAUSED' ? 'Pausado' : agent.metadata?.quality === 'AMBIGUOUS' ? 'Ambíguo' : 'Estado reportado'}</dd></div>}
         <div><dt>Estação</dt><dd>{agent.workstationId ?? 'Sem estação atribuída'}</dd></div>
       </dl>
       <section className="agent-task" aria-label="Tarefa atual">

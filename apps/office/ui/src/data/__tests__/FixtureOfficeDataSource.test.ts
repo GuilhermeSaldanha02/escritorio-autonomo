@@ -22,7 +22,7 @@ describe('FixtureOfficeDataSource', () => {
   it('mantém caixa REAL e SIMULATION separados e flags de governança independentes', async () => {
     const snapshot = await fixtureOfficeDataSource.getSnapshot();
 
-    expect(snapshot.financial.real.cashCents).not.toBe(snapshot.financial.simulation.cashCents);
+    expect(snapshot.financial.real?.cashCents).not.toBe(snapshot.financial.simulation?.cashCents);
     expect(snapshot.governance.autonomyEnabled).toBe(true);
     expect(snapshot.governance.autoSpendEnabled).toBe(false);
     expect(snapshot.governance.emergencyStop).toBe(false);

@@ -25,8 +25,8 @@ describe('Dashboard', () => {
     expect(screen.getByText('Caixa SIMULATION')).toBeTruthy();
     expect(screen.getByText(/1\.842,50/)).toBeTruthy();
     expect(screen.getByText(/2\.460,00/)).toBeTruthy();
-    expect(screen.getByText('Autonomia ativa')).toBeTruthy();
-    expect(screen.getByText('Auto-spend desativado')).toBeTruthy();
+    expect(screen.getByText('Autonomia configurada ativa')).toBeTruthy();
+    expect(screen.getByText('Auto-spend configurado desativado')).toBeTruthy();
     expect(screen.getByText('Emergency Stop ativo')).toBeTruthy();
     expect(screen.getByText('Circuit Breaker aberto')).toBeTruthy();
   });

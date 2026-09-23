@@ -27,6 +27,7 @@ export const OFFICE_DEMO_FIXTURE: { snapshot: OfficeSnapshot } = {
       simulation: { cashCents: 246_000, reserveCents: 73_800, operationsCents: 123_000, expansionCents: 49_200 },
     },
     governance: { autonomyEnabled: true, autoSpendEnabled: false, emergencyStop: false, circuitBreaker: 'CLOSED' },
+    metadata: { observedAt: null, connection: 'DEMO', sections: { agents: 'REPORTED', workstations: 'REPORTED', financial: 'REPORTED', governance: 'REPORTED', timeline: 'REPORTED' } },
     timeline: [
       { id: 'evt-001', type: 'AGENT_STATE_CHANGED', occurredAt: '2026-09-21T11:55:00.000Z', agentId: 'REVISOR-001', summary: 'Revisor aguardando próxima tarefa.' },
       { id: 'evt-002', type: 'OPPORTUNITY_FOUND', occurredAt: '2026-09-21T11:42:00.000Z', agentId: 'CACADOR-001', summary: 'Oportunidade identificada em fonte pública.', untrustedExternal: '<img src=x onerror=alert(1)> Fix memory leak in stream processor' },
