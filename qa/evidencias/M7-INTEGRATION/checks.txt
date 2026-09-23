@@ -24,6 +24,14 @@ Hook do checkpoint b88ae59 (vitest run --config vitest.unit.config.ts)
   54 arquivos / 398 testes passaram.
 
 pnpm --filter ui run test:unit
-  12 arquivos / 38 testes passaram.
+  12 arquivos / 39 testes passaram após o novo teste de receptor do fetch.
+
+Correção LIVE, 2026-09-23:
+  Teste focado: falhou antes com TypeError: Illegal invocation; passou depois (8/8).
+  Hook do commit 9163427: unit raiz 54 arquivos / 399 testes passaram.
+  Typecheck raiz, lint raiz, lint UI e build do monorepo: exit 0.
+  Chrome isolado sem extensões: Modo LIVE e Linha do tempo renderizados,
+  sem banner de indisponibilidade; print live-after-fetch-fix.png.
+  O aceite visual do owner e a revisão independente seguem pendentes.
 
 Rodadas anteriores com falha: timeout/contensão em testes legados; valor sintético de overflow impedindo downgrade 0010 (corrigido com limpeza transacional); Docker desligado causando ECONNREFUSED. Não foram usadas para alegar sucesso.
