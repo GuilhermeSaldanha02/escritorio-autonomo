@@ -23,6 +23,7 @@ afterAll(async () => { await app?.close(); await db?.end(); });
 
 describe('segurança Office', () => {
   it('não retransmite texto externo nem expõe escrita', async () => {
+    await db.query(`INSERT INTO opportunities (source, source_url, title) VALUES ('m7-security', 'https://example.invalid/SECRET_CANARY', 'SECRET_CANARY')`);
     await db.query(`INSERT INTO events (type, payload) VALUES ('TASK_STARTED', '{"prompt":"SECRET_CANARY","html":"<img onerror=alert(1)>"}'::jsonb)`);
     await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
     const response = await app.inject({ method: 'GET', url: '/office/snapshot', headers: { host: '127.0.0.1:5173' } });
@@ -48,5 +49,17 @@ describe('segurança Office', () => {
       socket.addEventListener('error', reject);
     });
     expect(closeCode).toBe(1008);
+  });
+  it('WebSocket limita payload de cliente sem processar comando extenso', async () => {
+    const address = app.server.address();
+    if (!address || typeof address === 'string') throw new Error('Expected TCP listener');
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/office/stream`);
+    const closeCode = await new Promise<number>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('WS size rejection timeout')), 5_000);
+      socket.addEventListener('open', () => socket.send(JSON.stringify({ type: 'SUBSCRIBE', padding: 'X'.repeat(2_048) })));
+      socket.addEventListener('close', event => { clearTimeout(timer); resolve(event.code); });
+      socket.addEventListener('error', reject);
+    });
+    expect([1008, 1009]).toContain(closeCode);
   });
 });

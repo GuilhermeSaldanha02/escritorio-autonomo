@@ -170,6 +170,31 @@ describe('journal persistido M7', () => {
     expect(replay.status).toBe('OK');
     if (replay.status === 'OK') expect(replay.updates.map(update => update.cursor)).toEqual([first.streamCursor, second.streamCursor]);
   });
+  it('evento fonte desconhecido recebe recibo sem virar timeline nem revisão inventada', async () => {
+    const before = await readOfficeEnvelope(db);
+    expect(before).not.toBeNull();
+    const id = (await db.query<{ id: string }>(
+      `INSERT INTO events (type, payload) VALUES ('OFFICE_UNKNOWN_TEST', '{"text":"SECRET_CANARY"}'::jsonb) RETURNING id`,
+    )).rows[0]!.id;
+    const after = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    expect(after.streamCursor).toBe(before!.streamCursor);
+    expect(after.snapshot.timeline.some(event => event.id === id)).toBe(false);
+    expect(JSON.stringify(after)).not.toContain('SECRET_CANARY');
+    expect((await db.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM office_event_receipts WHERE source_event_id = $1`, [id])).rows[0]?.count).toBe('1');
+  });
+  it('overflow financeiro permanece indisponível sem fabricar zero nem misturar REAL', async () => {
+    const opportunity = (await db.query<{ id: string }>(
+      `INSERT INTO opportunities (source, source_url, title) VALUES ('m7-overflow', 'https://example.invalid/overflow', 'm7 overflow') RETURNING id`,
+    )).rows[0]!.id;
+    await db.query(
+      `INSERT INTO financial_ledger (entry_type, amount_cents, ledger_scope, description, opportunity_id, external_reference, idempotency_key)
+       VALUES ('REVENUE', $1, 'SIMULATION', 'm7 overflow', $2, 'm7-overflow', $3)`,
+      ['9007199254740992', opportunity, crypto.randomUUID()],
+    );
+    const snapshot = (await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false })).snapshot;
+    expect(snapshot.financial.simulation).toBeNull();
+    expect(snapshot.financial.real?.cashCents).toBe(-200);
+  });
   it('retenção expira prefixo contíguo e up/down 0014 não toca o domínio', async () => {
     const current = await readOfficeEnvelope(db);
     expect(current).not.toBeNull();
