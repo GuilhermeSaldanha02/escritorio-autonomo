@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OfficeDataProvider } from '../../context/OfficeDataContext';
 import { SelectionProvider } from '../../context/SelectionContext';
@@ -34,7 +34,7 @@ describe('OfficeCanvas LIVE', () => {
     };
     const view = render(<OfficeDataProvider dataSource={dataSource}><SelectionProvider><OfficeCanvas /></SelectionProvider></OfficeDataProvider>);
     expect(await screen.findByText(/4 agentes/)).toBeTruthy();
-    expect(calls.created).toBe(1);
+    await waitFor(() => expect(calls.created).toBe(1));
     for (let i = 0; i < 100; i++) {
       await act(async () => {
         current = { ...current, generatedAt: new Date(Date.parse(current.generatedAt) + 1000).toISOString() };
