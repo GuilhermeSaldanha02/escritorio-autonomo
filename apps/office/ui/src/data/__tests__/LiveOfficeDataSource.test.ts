@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { encodeCursor } from '@escritorio/office-contract';
 import { OFFICE_DEMO_FIXTURE } from '../../../../src/fixtures';
 import { LiveOfficeDataSource } from '../LiveOfficeDataSource';
@@ -6,8 +6,8 @@ import { createOfficeDataSource } from '../createOfficeDataSource';
 import { fixtureOfficeDataSource } from '../FixtureOfficeDataSource';
 
 const epoch = '00000000-0000-4000-8000-000000000001';
-const envelope = () => ({
-  contractVersion: '2.0.0', revision: '1', streamCursor: encodeCursor({ epoch, revision: '1' }),
+const envelope = (revision = '1') => ({
+  contractVersion: '2.0.0', revision, streamCursor: encodeCursor({ epoch, revision }),
   snapshot: { ...OFFICE_DEMO_FIXTURE.snapshot, mode: 'LIVE' as const,
     timeline: OFFICE_DEMO_FIXTURE.snapshot.timeline.map(event => {
       const copy = { ...event };
@@ -16,6 +16,15 @@ const envelope = () => ({
     }),
     metadata: { ...OFFICE_DEMO_FIXTURE.snapshot.metadata, connection: 'LIVE' as const } },
 });
+
+class FakeSocket extends EventTarget {
+  sent: string[] = [];
+  send(value: string) { this.sent.push(value); }
+  close() { this.dispatchEvent(new Event('close')); }
+  message(value: unknown) { this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) })); }
+}
+
+afterEach(() => vi.useRealTimers());
 
 describe('LiveOfficeDataSource', () => {
   it('seleciona modo explícito sem transformar offline em fixture', () => {
@@ -35,18 +44,12 @@ describe('LiveOfficeDataSource', () => {
     await expect(offline.getSnapshot()).rejects.toThrow('offline');
   });
   it('aplica replacement uma vez e mantém um único socket compartilhado', async () => {
-    class FakeSocket extends EventTarget {
-      sent: string[] = [];
-      send(value: string) { this.sent.push(value); }
-      close() { this.dispatchEvent(new Event('close')); }
-      message(value: unknown) { this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(value) })); }
-    }
     const socket = new FakeSocket();
     const socketFactory = vi.fn().mockReturnValue(socket);
     const source = new LiveOfficeDataSource({ fetcher: vi.fn().mockResolvedValue({ ok: true, json: async () => envelope() }), socketFactory });
     const observed = vi.fn();
     const first = source.subscribe(observed);
-    const second = source.subscribe(observed);
+    const second = source.subscribe(vi.fn());
     await source.getSnapshot();
     await Promise.resolve();
     expect(socketFactory).toHaveBeenCalledTimes(1);
@@ -61,5 +64,45 @@ describe('LiveOfficeDataSource', () => {
     expect((await source.getSnapshot()).agents[0]?.state).toBe('IDLE');
     first(); second();
     expect(socketFactory).toHaveBeenCalledTimes(1);
+  });
+  it('reconecta com o último cursor efetivamente aplicado, sem refetch DEMO', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => envelope() });
+    const source = new LiveOfficeDataSource({ fetcher, socketFactory: factory, random: () => 0.5, now: () => Date.now() });
+    await source.getSnapshot();
+    const unsubscribe = source.subscribe(vi.fn());
+    await Promise.resolve();
+    const first = sockets[0]!;
+    first.dispatchEvent(new Event('open'));
+    first.message({ type: 'OFFICE_UPDATED', baseCursor: encodeCursor({ epoch, revision: '1' }), cursor: encodeCursor({ epoch, revision: '2' }), revision: '2', changes: { timeline: [] } });
+    first.close();
+    expect((await source.getSnapshot()).metadata.connection).toBe('STALE');
+    await vi.advanceTimersByTimeAsync(1_000);
+    const second = sockets[1]!;
+    second.dispatchEvent(new Event('open'));
+    expect(JSON.parse(second.sent[0]!)).toMatchObject({ afterCursor: encodeCursor({ epoch, revision: '2' }) });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    unsubscribe();
+  });
+  it('FULL_RESYNC_REQUIRED busca novo snapshot e major incompatível não cria socket', async () => {
+    const sockets: FakeSocket[] = [];
+    const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
+    const fetcher = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => envelope('1') })
+      .mockResolvedValueOnce({ ok: true, json: async () => envelope('5') });
+    const source = new LiveOfficeDataSource({ fetcher, socketFactory: factory });
+    await source.getSnapshot();
+    const unsubscribe = source.subscribe(vi.fn());
+    await Promise.resolve();
+    sockets[0]!.message({ type: 'FULL_RESYNC_REQUIRED', reason: 'CURSOR_EXPIRED' });
+    await vi.waitFor(() => expect(sockets).toHaveLength(2));
+    sockets[1]!.dispatchEvent(new Event('open'));
+    expect(JSON.parse(sockets[1]!.sent[0]!)).toMatchObject({ afterCursor: encodeCursor({ epoch, revision: '5' }) });
+    unsubscribe();
+    const incompatibleFactory = vi.fn();
+    const incompatible = new LiveOfficeDataSource({ fetcher: vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...envelope(), contractVersion: '3.0.0' }) }), socketFactory: incompatibleFactory });
+    await expect(incompatible.getSnapshot()).rejects.toThrow('incompatível');
+    expect(incompatibleFactory).not.toHaveBeenCalled();
   });
 });
