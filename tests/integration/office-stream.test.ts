@@ -90,4 +90,20 @@ describe('Office REST/WS', () => {
       } finally { socket.close(); }
     } finally { await reopened.close(); }
   });
+  it('cliente lento com buffer saturado recebe fechamento explícito', async () => {
+    const snapshot = (await app.inject({ method: 'GET', url: '/office/snapshot', headers: { host: '127.0.0.1:5173' } })).json() as { streamCursor: string };
+    app.websocketServer.once('connection', (socket: object) => {
+      Object.defineProperty(socket, 'bufferedAmount', { configurable: true, get: () => 1024 * 1024 });
+    });
+    const address = app.server.address();
+    if (!address || typeof address === 'string') throw new Error('Expected TCP listener');
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/office/stream`);
+    const closeCode = await new Promise<number>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Office slow-client timeout')), 5_000);
+      socket.addEventListener('open', () => socket.send(JSON.stringify({ type: 'SUBSCRIBE', clientVersion: '2.0.0', afterCursor: snapshot.streamCursor })));
+      socket.addEventListener('close', event => { clearTimeout(timer); resolve(event.code); });
+      socket.addEventListener('error', reject);
+    });
+    expect(closeCode).toBe(1009);
+  });
 });

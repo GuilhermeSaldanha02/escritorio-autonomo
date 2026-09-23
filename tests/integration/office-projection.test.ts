@@ -10,6 +10,22 @@ function disposableUrl(): string {
   return value;
 }
 
+async function removeSyntheticOverflow(db: Pool, id: string): Promise<void> {
+  // O reset do suite volta pela 0010 (numeric(14,2)); este valor sintético
+  // precisa sair do banco descartável antes do downgrade. Nunca no domínio do owner.
+  const tx = await db.connect();
+  try {
+    await tx.query('BEGIN');
+    await tx.query('ALTER TABLE financial_ledger DISABLE TRIGGER financial_ledger_append_only');
+    await tx.query(`DELETE FROM financial_ledger WHERE id = $1`, [id]);
+    await tx.query('ALTER TABLE financial_ledger ENABLE TRIGGER financial_ledger_append_only');
+    await tx.query('COMMIT');
+  } catch (error) {
+    await tx.query('ROLLBACK');
+    throw error;
+  } finally { tx.release(); }
+}
+
 let db: Pool;
 beforeAll(async () => {
   db = createPool(disposableUrl(), createLogger('office-projection-test', 'silent'), 'office-projection-test');
@@ -103,6 +119,36 @@ describe('journal persistido M7', () => {
     const journal = await db.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM office_stream_entries WHERE revision = $1`, [a.revision]);
     expect(journal.rows[0]?.count).toBe('1');
   });
+  it('retry 40001 abre outra transação e restart após commit não duplica revisão', async () => {
+    const id = (await db.query<{ id: string }>(`INSERT INTO events (type) VALUES ('TASK_COMPLETED') RETURNING id`)).rows[0]!.id;
+    let connections = 0;
+    let injected = false;
+    const retryPool = {
+      connect: async () => {
+        const client = await db.connect();
+        connections++;
+        if (connections > 1) return client;
+        return new Proxy(client, {
+          get(target, key) {
+            if (key === 'query') return (sql: string, ...params: unknown[]) => {
+              if (!injected && sql.includes('FROM office_projection_head') && sql.includes('FOR UPDATE')) {
+                injected = true;
+                return Promise.reject(Object.assign(new Error('serialization test'), { code: '40001' }));
+              }
+              return Reflect.apply(target.query, target, [sql, ...params]);
+            };
+            if (key === 'release') return target.release.bind(target);
+            return Reflect.get(target, key);
+          },
+        });
+      },
+    } as unknown as Pool;
+    const committed = await refreshOfficeProjection(retryPool, { autonomyEnabled: false, autoSpendEnabled: false });
+    expect(connections).toBe(2);
+    const restarted = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    expect(restarted.streamCursor).toBe(committed.streamCursor);
+    expect((await db.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM office_event_receipts WHERE source_event_id = $1`, [id])).rows[0]?.count).toBe('1');
+  });
   it('rollback de evento não cria revisão ou recibo órfão', async () => {
     const before = await readOfficeEnvelope(db);
     expect(before).not.toBeNull();
@@ -186,14 +232,55 @@ describe('journal persistido M7', () => {
     const opportunity = (await db.query<{ id: string }>(
       `INSERT INTO opportunities (source, source_url, title) VALUES ('m7-overflow', 'https://example.invalid/overflow', 'm7 overflow') RETURNING id`,
     )).rows[0]!.id;
-    await db.query(
+    const entry = (await db.query<{ id: string }>(
       `INSERT INTO financial_ledger (entry_type, amount_cents, ledger_scope, description, opportunity_id, external_reference, idempotency_key)
-       VALUES ('REVENUE', $1, 'SIMULATION', 'm7 overflow', $2, 'm7-overflow', $3)`,
+       VALUES ('REVENUE', $1, 'SIMULATION', 'm7 overflow', $2, 'm7-overflow', $3) RETURNING id`,
       ['9007199254740992', opportunity, crypto.randomUUID()],
-    );
-    const snapshot = (await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false })).snapshot;
-    expect(snapshot.financial.simulation).toBeNull();
-    expect(snapshot.financial.real?.cashCents).toBe(-200);
+    )).rows[0]!;
+    try {
+      const snapshot = (await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false })).snapshot;
+      expect(snapshot.financial.simulation).toBeNull();
+      expect(snapshot.financial.real?.cashCents).toBe(-200);
+    } finally {
+      await removeSyntheticOverflow(db, entry.id);
+    }
+  });
+  it('replay iniciado antes da retenção preserva sua revisão e depois converge', async () => {
+    const before = await readOfficeEnvelope(db);
+    expect(before).not.toBeNull();
+    await db.query(`INSERT INTO events (type) VALUES ('TASK_STARTED')`);
+    const updated = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    await db.query(`UPDATE office_stream_entries SET created_at = clock_timestamp() - INTERVAL '25 hours'`);
+    let releaseEntries!: () => void;
+    let entriesReached!: () => void;
+    const holdEntries = new Promise<void>(resolve => { releaseEntries = resolve; });
+    const atEntries = new Promise<void>(resolve => { entriesReached = resolve; });
+    const replayPool = {
+      connect: async () => {
+        const client = await db.connect();
+        return new Proxy(client, {
+          get(target, key) {
+            if (key === 'query') return (sql: string, ...params: unknown[]) => {
+              if (sql.includes('SELECT payload FROM office_stream_entries')) {
+                entriesReached();
+                return holdEntries.then(() => Reflect.apply(target.query, target, [sql, ...params]));
+              }
+              return Reflect.apply(target.query, target, [sql, ...params]);
+            };
+            if (key === 'release') return target.release.bind(target);
+            return Reflect.get(target, key);
+          },
+        });
+      },
+    } as unknown as Pool;
+    const pending = readOfficeReplay(replayPool, before!.streamCursor);
+    await atEntries;
+    try { await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false }); }
+    finally { releaseEntries(); }
+    const replay = await pending;
+    expect(replay.status).toBe('OK');
+    if (replay.status === 'OK') expect(replay.updates.at(-1)?.cursor).toBe(updated.streamCursor);
+    expect(await readOfficeReplay(db, updated.streamCursor)).toMatchObject({ status: 'OK', updates: [] });
   });
   it('retenção expira prefixo contíguo e up/down 0014 não toca o domínio', async () => {
     const current = await readOfficeEnvelope(db);
