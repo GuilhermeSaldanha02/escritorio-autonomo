@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { encodeCursor } from '@escritorio/office-contract';
 import { createPool, migrateDown, migrateUp, migrationStatus, seedInitialAgents, type Pool } from '@escritorio/database';
 import { createLogger } from '@escritorio/shared';
 import { refreshOfficeProjection, readOfficeEnvelope, readOfficeReplay } from '../../apps/api/src/office/journal.js';
@@ -101,6 +102,73 @@ describe('journal persistido M7', () => {
     expect(count.rows[0]?.count).toBe('1');
     const journal = await db.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM office_stream_entries WHERE revision = $1`, [a.revision]);
     expect(journal.rows[0]?.count).toBe('1');
+  });
+  it('rollback de evento não cria revisão ou recibo órfão', async () => {
+    const before = await readOfficeEnvelope(db);
+    expect(before).not.toBeNull();
+    const tx = await db.connect();
+    let id: string;
+    try {
+      await tx.query('BEGIN');
+      id = (await tx.query<{ id: string }>(`INSERT INTO events (type) VALUES ('TASK_COMPLETED') RETURNING id`)).rows[0]!.id;
+      await tx.query('ROLLBACK');
+    } finally { tx.release(); }
+    const after = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    expect(after.streamCursor).toBe(before!.streamCursor);
+    expect((await db.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM office_event_receipts WHERE source_event_id = $1`, [id])).rows[0]?.count).toBe('0');
+  });
+  it('release e breakers SOURCE/AGENT preservam leitura sem consumo de probe', async () => {
+    await db.query(`INSERT INTO emergency_stop_events (kind, actor, reason) VALUES ('RELEASED', 'FOUNDER_CLI', 'm7 test')`);
+    await db.query(`INSERT INTO circuit_breaker_events (scope_type, scope_key, event_type) VALUES ('SOURCE', 'm7-source', 'OPENED'), ('SOURCE', 'm7-source', 'HALF_OPEN'), ('AGENT', 'REVISOR-001', 'CLOSED')`);
+    const count = async () => (await db.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM circuit_breaker_events`)).rows[0]?.count;
+    const before = await count();
+    const envelope = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    expect(envelope.snapshot.governance).toMatchObject({ emergencyStop: false, circuitBreaker: 'HALF_OPEN', autoSpendEnabled: false });
+    expect(envelope.snapshot.governance.breakers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ scopeType: 'SOURCE', scopeKey: 'm7-source', state: 'HALF_OPEN' }),
+      expect.objectContaining({ scopeType: 'AGENT', scopeKey: 'REVISOR-001', state: 'CLOSED' }),
+    ]));
+    expect(await count()).toBe(before);
+  });
+  it('replay diferencia epoch inválida, cursor futuro e gap', async () => {
+    const current = await readOfficeEnvelope(db);
+    expect(current).not.toBeNull();
+    const revision = BigInt(current!.revision);
+    expect(await readOfficeReplay(db, encodeCursor({ epoch: crypto.randomUUID(), revision: current!.revision }))).toMatchObject({ status: 'RESYNC', reason: 'EPOCH_MISMATCH' });
+    expect(await readOfficeReplay(db, encodeCursor({ epoch: current!.streamCursor.split('.')[1]!, revision: (revision + 1n).toString() }))).toMatchObject({ status: 'RESYNC', reason: 'CURSOR_AHEAD' });
+    expect(await readOfficeReplay(db, 'invalid')).toMatchObject({ status: 'RESYNC', reason: 'INVALID_CURSOR' });
+    if (revision > 1n) {
+      const row = (await db.query<{ epoch: string; revision: string; base_revision: string; payload: unknown; created_at: Date }>(
+        `SELECT epoch, revision, base_revision, payload, created_at FROM office_stream_entries WHERE revision > 1 ORDER BY revision LIMIT 1`,
+      )).rows[0];
+      if (row) {
+        await db.query(`DELETE FROM office_stream_entries WHERE epoch = $1 AND revision = $2`, [row.epoch, row.revision]);
+        try {
+          expect(await readOfficeReplay(db, encodeCursor({ epoch: row.epoch, revision: '1' }))).toMatchObject({ status: 'RESYNC', reason: 'REVISION_GAP' });
+        } finally {
+          await db.query(`INSERT INTO office_stream_entries (epoch, revision, base_revision, payload, created_at) VALUES ($1, $2, $3, $4::jsonb, $5)`,
+            [row.epoch, row.revision, row.base_revision, JSON.stringify(row.payload), row.created_at]);
+        }
+      }
+    }
+  });
+  it('histórico sintético acima do lote reconcilia sem perder recibos nem exceder timeline', async () => {
+    const sourceIds = (await db.query<{ id: string }>(
+      `INSERT INTO events (type) SELECT 'TASK_CREATED' FROM generate_series(1, 250) RETURNING id`,
+    )).rows.map(row => row.id);
+    const before = await readOfficeEnvelope(db);
+    expect(before).not.toBeNull();
+    const first = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    const second = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    expect(BigInt(second.revision)).toBe(BigInt(first.revision) + 1n);
+    const receipts = await db.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM office_event_receipts WHERE source_event_id = ANY($1::uuid[])`, [sourceIds],
+    );
+    expect(receipts.rows[0]?.count).toBe('250');
+    expect(second.snapshot.timeline.length).toBeLessThanOrEqual(50);
+    const replay = await readOfficeReplay(db, before!.streamCursor);
+    expect(replay.status).toBe('OK');
+    if (replay.status === 'OK') expect(replay.updates.map(update => update.cursor)).toEqual([first.streamCursor, second.streamCursor]);
   });
   it('retenção expira prefixo contíguo e up/down 0014 não toca o domínio', async () => {
     const current = await readOfficeEnvelope(db);

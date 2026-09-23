@@ -105,4 +105,51 @@ describe('LiveOfficeDataSource', () => {
     await expect(incompatible.getSnapshot()).rejects.toThrow('incompatível');
     expect(incompatibleFactory).not.toHaveBeenCalled();
   });
+  it('gap ou mensagem desconhecida não é aplicada e força snapshot novo', async () => {
+    const sockets: FakeSocket[] = [];
+    const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
+    const fetcher = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => envelope('1') })
+      .mockResolvedValueOnce({ ok: true, json: async () => envelope('5') })
+      .mockResolvedValueOnce({ ok: true, json: async () => envelope('7') });
+    const source = new LiveOfficeDataSource({ fetcher, socketFactory: factory });
+    const unsubscribe = source.subscribe(vi.fn());
+    await source.getSnapshot();
+    await vi.waitFor(() => expect(sockets).toHaveLength(1));
+    sockets[0]!.message({ type: 'OFFICE_UPDATED', baseCursor: encodeCursor({ epoch, revision: '3' }), cursor: encodeCursor({ epoch, revision: '4' }), revision: '4', changes: { timeline: [] } });
+    await vi.waitFor(() => expect(sockets).toHaveLength(2));
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    sockets[1]!.dispatchEvent(new Event('open'));
+    expect(JSON.parse(sockets[1]!.sent[0]!)).toMatchObject({ afterCursor: encodeCursor({ epoch, revision: '5' }) });
+    sockets[1]!.message({ type: 'UNKNOWN_WRITE', payload: 'ignored' });
+    await vi.waitFor(() => expect(sockets).toHaveLength(3));
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect((await source.getSnapshot()).mode).toBe('LIVE');
+    unsubscribe();
+  });
+  it('heartbeat perdido marca STALE, backoff reconecta e unsubscribe limpa timers', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
+    const source = new LiveOfficeDataSource({
+      fetcher: vi.fn().mockResolvedValue({ ok: true, json: async () => envelope() }),
+      socketFactory: factory, random: () => 0.5, now: () => Date.now(),
+    });
+    await source.getSnapshot();
+    const unsubscribe = source.subscribe(vi.fn());
+    await Promise.resolve();
+    sockets[0]!.dispatchEvent(new Event('open'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect((await source.getSnapshot()).metadata.connection).toBe('STALE');
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(sockets).toHaveLength(2);
+    sockets[1]!.close();
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(sockets).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(sockets).toHaveLength(3);
+    sockets[2]!.close();
+    unsubscribe();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(sockets).toHaveLength(3);
+  });
 });

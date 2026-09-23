@@ -57,4 +57,37 @@ describe('Office REST/WS', () => {
       ]);
     } finally { socket.close(); }
   });
+  it('reconecta desde último cursor e nova instância da API mantém epoch', async () => {
+    const initial = (await app.inject({ method: 'GET', url: '/office/snapshot', headers: { host: '127.0.0.1:5173' } })).json() as { streamCursor: string };
+    await db.query(`UPDATE agents SET state = 'IDLE' WHERE id = 'REVISOR-001'`);
+    const first = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    const reopened = Fastify();
+    await reopened.register(websocket);
+    await reopened.register(officeRoutes, { pool: db });
+    await reopened.listen({ host: '127.0.0.1', port: 0 });
+    try {
+      const observed = (await reopened.inject({ method: 'GET', url: '/office/snapshot', headers: { host: '127.0.0.1:5173' } })).json() as { streamCursor: string };
+      expect(observed.streamCursor).toBe(first.streamCursor);
+      expect(observed.streamCursor.split('.')[1]).toBe(initial.streamCursor.split('.')[1]);
+      const address = reopened.server.address();
+      if (!address || typeof address === 'string') throw new Error('Expected TCP listener');
+      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/office/stream`);
+      try {
+        const messages = await new Promise<Array<{ type: string; cursor?: string; baseCursor?: string }>>((resolve, reject) => {
+          const all: Array<{ type: string; cursor?: string; baseCursor?: string }> = [];
+          const timeout = setTimeout(() => reject(new Error('Office reconnect timeout')), 5_000);
+          socket.addEventListener('open', () => socket.send(JSON.stringify({ type: 'SUBSCRIBE', clientVersion: '2.0.0', afterCursor: initial.streamCursor })));
+          socket.addEventListener('message', event => {
+            const message = JSON.parse(String(event.data)) as { type: string; cursor?: string; baseCursor?: string };
+            all.push(message);
+            if (message.type === 'SYNC_COMPLETE') { clearTimeout(timeout); resolve(all); }
+          });
+          socket.addEventListener('error', reject);
+        });
+        expect(messages.filter(message => message.type === 'OFFICE_UPDATED')).toEqual([
+          expect.objectContaining({ type: 'OFFICE_UPDATED', baseCursor: initial.streamCursor, cursor: first.streamCursor }),
+        ]);
+      } finally { socket.close(); }
+    } finally { await reopened.close(); }
+  });
 });
