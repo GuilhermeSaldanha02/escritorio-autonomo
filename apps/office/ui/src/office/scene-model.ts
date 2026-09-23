@@ -69,7 +69,7 @@ export interface OfficeSceneModel {
   agents: SceneAgent[];
 }
 
-function toSceneWorkstations(layout: OfficeLayout): SceneWorkstation[] {
+function toSceneWorkstations(layout: OfficeLayout, live: boolean): SceneWorkstation[] {
   const { tileSize } = layout.grid;
   return layout.rooms.flatMap((room) =>
     room.workstations.map((workstation) => ({
@@ -77,8 +77,8 @@ function toSceneWorkstations(layout: OfficeLayout): SceneWorkstation[] {
       roomId: room.id,
       x: workstation.position.col * tileSize,
       y: workstation.position.row * tileSize,
-      status: workstation.status,
-      assignedAgentId: workstation.assignedAgentId,
+      status: live ? 'EMPTY' : workstation.status,
+      assignedAgentId: live ? null : workstation.assignedAgentId,
     })),
   );
 }
@@ -123,15 +123,16 @@ function placeAgent(
   agent: OfficeAgent,
   workstations: SceneWorkstation[],
   layout: OfficeLayout,
+  live: boolean,
 ): SceneAgent {
   const preferredId =
-    agent.workstationId ?? layout.defaultPlacement[agent.id]?.workstationId;
+    agent.workstationId ?? (live ? undefined : layout.defaultPlacement[agent.id]?.workstationId);
   const workstation =
     workstations.find((candidate) => candidate.id === preferredId) ??
-    workstations.find(
+    (live ? undefined : workstations.find(
       (candidate) =>
         candidate.status === 'EMPTY' && candidate.assignedAgentId === null,
-    );
+    ));
 
   if (!workstation) {
     return {
@@ -168,7 +169,8 @@ export function createOfficeSceneModel(input: {
   layout: OfficeLayout;
   snapshot: OfficeSnapshot;
 }): OfficeSceneModel {
-  const workstations = toSceneWorkstations(input.layout);
+  const live = input.snapshot.mode === 'LIVE';
+  const workstations = toSceneWorkstations(input.layout, live);
   const snapshotAssignments = new Map(
     input.snapshot.workstations.map((workstation) => [
       workstation.id,
@@ -188,8 +190,8 @@ export function createOfficeSceneModel(input: {
     layout: input.layout,
     rooms: input.layout.rooms,
     workstations,
-    agents: input.snapshot.agents.map((agent) =>
-      placeAgent(agent, workstations, input.layout),
+    agents: input.snapshot.agents.filter(agent => !live || agent.lifecycleStatus !== 'ARCHIVED').map((agent) =>
+      placeAgent(agent, workstations, input.layout, live),
     ),
   };
 }

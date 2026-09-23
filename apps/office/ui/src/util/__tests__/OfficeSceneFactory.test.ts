@@ -107,4 +107,15 @@ describe('OfficeSceneFactory', () => {
       )?.y ?? 0,
     );
   });
+  it('LIVE não ressuscita ocupação estática nem agente arquivado', async () => {
+    const snapshot = await fixtureOfficeDataSource.getSnapshot();
+    snapshot.mode = 'LIVE';
+    snapshot.agents = [snapshot.agents[0]!, { ...snapshot.agents[1]!, lifecycleStatus: 'ARCHIVED' }];
+    delete snapshot.agents[0]!.workstationId;
+    snapshot.workstations = [];
+    const model = createOfficeSceneModel({ layout: layout as Parameters<typeof createOfficeSceneModel>[0]['layout'], snapshot });
+    expect(model.workstations.every(workstation => workstation.status === 'EMPTY' && workstation.assignedAgentId === null)).toBe(true);
+    expect(model.agents.map(agent => agent.id)).toEqual(['CACADOR-001']);
+    expect(model.agents[0]?.workstationId).toBeUndefined();
+  });
 });

@@ -3,13 +3,13 @@
 ## ESTADO ATUAL
 
 - **Última sessão:** 2026-09-22 · agente: codex · branch: `codex/m7-integration`, worktree `C:/escritorio-autonomo-m7-integration`.
-- **O que foi feito:** contrato/projeção pura `825e706`; migration 0014, head+journal+receipts `758c75d`; REST/WS `20266ff`. Adapter LIVE inicial, seleção explícita fixture/live e labels de qualidade em revisão; arte e layout aprovados intactos.
-- **Verificado:** checkpoint de consistência após interrupção: suíte raiz `52 arquivos / 391 testes`, UI `10 arquivos / 31 testes`, integração focada `3 arquivos / 11 testes`; migration 0014 up/down em `office_m7_test`; typecheck, lint e build verdes. Warning Phaser >500 kB conhecido.
-- **Em andamento:** etapa 4 — aprofundar reconnect/resync/stale/StrictMode; etapa 5 — evitar recriação do Game; etapa 6 — matriz I01–I18/evidências. QA independente permanece ALEGADO.
-- **Não commitado:** adapter/UI inicial validado, aguardando checkpoint parcial.
+- **O que foi feito:** contrato/projeção pura `825e706`; migration/journal `758c75d`; REST/WS `20266ff`; adapter inicial `a96a69b` e testes de replay/reconexão `4cc90cd`. A cena agora recebe snapshots sem recriar Game; layout/arte não foram editados.
+- **Verificado:** suíte raiz `53 arquivos / 395 testes`, UI focada da cena `4 testes`, integração focada `3 arquivos / 11 testes`; migration 0014 up/down em `office_m7_test`; typecheck, lint e build verdes. Warning Phaser >500 kB conhecido.
+- **Em andamento:** validar cena em navegador e limites/reconnect da etapa 4/5; etapa 6 — matriz I01–I18/evidências. QA independente permanece ALEGADO.
+- **Não commitado:** cena persistente e testes aguardam checkpoint.
 - **Bloqueado / a decidir:** nenhum pedido de ampliação de escopo. Banco/Redis de teste são containers próprios `codex-m7-pg-test` e `codex-m7-redis-test`, sem volumes do owner.
-- **Próximo passo:** commitar checkpoint parcial do adapter, então completar testes de reconnect/backoff/StrictMode e atualização da cena Phaser. Sem merge ou M8.
-- **Para o outro agente saber:** `LiveOfficeDataSource` conserva cache/cursor e nunca devolve fixture offline; ainda falta provar cenários avançados. `OfficeCanvas` ainda recria Game a cada snapshot: não chamar etapa 5 pronta. `/office/snapshot` serve head persistido; `/office/stream` usa replay/tail do journal. Não executar main contra config do owner. `.env` não foi lido; integração somente no `office_m7_test`.
+- **Próximo passo:** checkpoint da cena; validação visual real, testes avançados de adapter/WS e matriz completa. Sem merge ou M8.
+- **Para o outro agente saber:** teste de 100 snapshots confirma um Game; cena atualiza agentes/mesas sem reiniciar câmera ou rota PROBATION. Falta QA visual em browser e matriz I01–I18. `LiveOfficeDataSource` mantém cache/cursor, sem fixture offline. Não executar main contra config do owner. `.env` não foi lido; integração somente no `office_m7_test`.
 
 ## PAINEL
 

@@ -13,6 +13,7 @@ import { createOfficeScene } from '../util/OfficeSceneFactory';
 export default function OfficeCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<Phaser.Game | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
   const snapshot = useOfficeSnapshot();
   const { selectedAgentId, setSelectedAgentId } = useSelection();
   const model = useMemo(
@@ -27,6 +28,11 @@ export default function OfficeCanvas() {
     const container = containerRef.current;
     if (container === null || model === null) return undefined;
 
+    if (gameRef.current) {
+      gameRef.current.scene.getScene('OfficeScene')?.events.emit('update-office-model', model);
+      return undefined;
+    }
+
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: container,
@@ -37,15 +43,17 @@ export default function OfficeCanvas() {
       scene: createOfficeScene(model, setSelectedAgentId, null),
     });
     gameRef.current = game;
-    const resizeObserver = new ResizeObserver(() => game.scale.refresh());
-    resizeObserver.observe(container);
-
-    return () => {
-      resizeObserver.disconnect();
-      gameRef.current = null;
-      game.destroy(true);
-    };
+    observerRef.current = new ResizeObserver(() => game.scale.refresh());
+    observerRef.current.observe(container);
+    return undefined;
   }, [model, setSelectedAgentId]);
+
+  useEffect(() => () => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    gameRef.current?.destroy(true);
+    gameRef.current = null;
+  }, []);
 
   useEffect(() => {
     gameRef.current?.scene

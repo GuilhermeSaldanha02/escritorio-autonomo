@@ -12,6 +12,19 @@ export function createOfficeScene(
   selectedAgentId: string | null,
 ): Phaser.Scene {
   return new (class OfficeScene extends Phaser.Scene {
+    private currentModel = model;
+    private readonly views = new Map<string, {
+      agent: SceneAgent;
+      figure: Phaser.GameObjects.Container;
+      dot: Phaser.GameObjects.Rectangle;
+      label: Phaser.GameObjects.Text;
+      selectionLine: Phaser.GameObjects.Rectangle;
+      timer: Phaser.Time.TimerEvent;
+      selectHandler: (id: string | null) => void;
+      alerting: boolean;
+      walking: boolean;
+    }>();
+
     constructor() {
       super({ key: 'OfficeScene' });
     }
@@ -84,36 +97,33 @@ export function createOfficeScene(
         )
         .setVisible(selected);
       figure.add(selectionLine);
-      this.events.on('select-agent', (id: string | null) => {
+      const selectHandler = (id: string | null) => {
         selected = id === agent.id;
         label.setVisible(selected);
         selectionLine.setVisible(selected);
-      });
+      };
+      this.events.on('select-agent', selectHandler);
       let step = 0,
         walking = agent.route.length > 1,
         direction = 'south';
-      const workstation = model.workstations.find(
-        (ws) => ws.id === agent.workstationId,
-      );
       const sit = () => {
         walking = false;
+        const view = this.views.get(agent.id);
+        if (view) view.walking = false;
         sprite.setTexture(`${agent.id}-true-north-0`);
+        const workstation = this.currentModel.workstations.find(
+          ws => ws.id === view?.agent.workstationId,
+        );
         if (workstation) {
           const desk = this.children.getByName(
             workstation.id,
           ) as Phaser.GameObjects.Image;
           desk.setTexture(`desk-${workstation.id}-on`);
         }
-        if (agent.visual.animation === 'alert')
-          this.tweens.add({
-            targets: dot,
-            alpha: 0.2,
-            duration: 450,
-            yoyo: true,
-            repeat: -1,
-          });
+        this.syncAlert(agent.id);
       };
       const next = (point: number) => {
+        if (!this.views.has(agent.id)) return;
         if (point >= agent.route.length) {
           sit();
           return;
@@ -144,22 +154,72 @@ export function createOfficeScene(
           onComplete: () => next(point + 1),
         });
       };
-      this.time.addEvent({
+      const timer = this.time.addEvent({
         delay: 180,
         loop: true,
         callback: () => {
           step++;
           if (walking)
             sprite.setTexture(`${agent.id}-false-${direction}-${step % 2}`);
-          else if (['type', 'scan', 'think'].includes(agent.visual.animation))
+          else if (['type', 'scan', 'think'].includes(this.views.get(agent.id)?.agent.visual.animation ?? ''))
             sprite.y = -12 + (step % 4 === 0 ? 1 : 0);
         },
       });
+      this.views.set(agent.id, { agent, figure, dot, label, selectionLine, timer, selectHandler, alerting: false, walking });
       if (walking) next(1);
       else sit();
     }
 
+    private syncAlert(id: string): void {
+      const view = this.views.get(id);
+      if (!view) return;
+      const alert = view.agent.visual.animation === 'alert';
+      if (alert && !view.alerting) {
+        this.tweens.add({ targets: view.dot, alpha: 0.2, duration: 450, yoyo: true, repeat: -1 });
+        view.alerting = true;
+      } else if (!alert && view.alerting) {
+        this.tweens.killTweensOf(view.dot);
+        view.dot.setAlpha(1);
+        view.alerting = false;
+      }
+    }
+
+    private updateModel(next: OfficeSceneModel): void {
+      this.currentModel = next;
+      const nextIds = new Set(next.agents.map(agent => agent.id));
+      for (const [id, view] of this.views) {
+        if (nextIds.has(id)) continue;
+        view.timer.remove();
+        this.tweens.killTweensOf(view.figure);
+        this.tweens.killTweensOf(view.dot);
+        this.events.off('select-agent', view.selectHandler);
+        view.figure.destroy(true);
+        this.views.delete(id);
+      }
+      const founders = ['CACADOR-001', 'DIRETOR-001', 'DESENVOLVEDOR-001', 'REVISOR-001'];
+      for (const agent of next.agents) {
+        const view = this.views.get(agent.id);
+        if (!view) { this.person(agent, Math.max(0, founders.indexOf(agent.id))); continue; }
+        if (view.agent.workstationId !== agent.workstationId) {
+          this.tweens.killTweensOf(view.figure);
+          view.figure.setPosition(agent.x, agent.y);
+        }
+        view.agent = agent;
+        const color = Number.parseInt(agent.visual.color.slice(1), 16);
+        view.dot.setFillStyle(color);
+        view.selectionLine.setFillStyle(color);
+        view.label.setText(`${agent.displayName}\n${agent.visual.label}`);
+        this.syncAlert(agent.id);
+      }
+      for (const workstation of next.workstations) {
+        const desk = this.children.getByName(workstation.id) as Phaser.GameObjects.Image | null;
+        const entering = next.agents.some(agent => agent.workstationId === workstation.id && this.views.get(agent.id)?.walking);
+        desk?.setTexture(`desk-${workstation.id}-${workstation.status === 'OCCUPIED' && !entering ? 'on' : 'off'}`);
+      }
+    }
+
     create(): void {
+      this.events.on('update-office-model', (next: OfficeSceneModel) => this.updateModel(next));
       const { canvasWidth: w, canvasHeight: h } = model.layout.grid;
       this.cameras.main
         .setBackgroundColor(art.ink)
