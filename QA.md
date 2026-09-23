@@ -7,6 +7,18 @@
 | M7-UNIT | Data source, fixture, resolver, scene model e blueprint visual | ALEGADO | rodada 2026-09-22 | 49 arquivos / 379 testes; prova do próprio implementador |
 | M7-BUILD | Typecheck, lint e build do UI | ALEGADO | rodada 2026-09-22 | todos passaram; aviso não bloqueante de chunk Phaser |
 | M7-VISUAL | Cenário, personagens, Inspector/Timeline e segurança de texto | ALEGADO | rodada 2026-09-22 | `qa/evidencias/M7-REBUILD/`; prova do próprio implementador |
+| M7I-UNIT | Contrato, projeção, adapter e cena LIVE | ALEGADO | `b88ae59` | 54/398 raiz e 12/38 UI; `qa/evidencias/M7-INTEGRATION/` |
+| M7I-INT | Migration, journal, snapshot, REST/WS e segurança | ALEGADO | `b88ae59` | 31/257 completos no banco descartável; migration 0014 up/down |
+| M7I-VISUAL | Fixture aprovada versus LIVE | PARCIAL | `31c3bae` | Quatro Inspectors fixture verificados; LIVE bloqueado pelo navegador interno; sem print LIVE |
+| M7I-MATRIX | Critérios I01–I18 | ALEGADO técnico; I16 visual PARCIAL | `b88ae59` | Matriz e limite do navegador em `docs/M7-INTEGRATION-HANDOFF.md` |
+
+## M7-INTEGRATION — rodada do implementador, 2026-09-23
+
+`docs/M7-INTEGRATION-HANDOFF.md` contém a matriz I01–I18 com evidência e lacunas. Nenhum item foi promovido a `PASSOU`: a revisão independente ainda não ocorreu. A migration 0014 foi validada com up/down somente em `office_m7_test` descartável; `.env` e secrets não foram lidos.
+
+Suíte unitária raiz: 54 arquivos/398 testes; UI: 12/38. Integração completa final: 31/257, incluindo migration 0014 up/down, replay, segurança, overflow, retry 40001, retenção concorrente e slow-client, após limpeza transacional da linha sintética e restauração dos containers descartáveis. Uma rodada intermediária falhou porque o valor de overflow deixado pelo teste não cabia no downgrade 0010; outra falhou com Docker desligado. Essas falhas não são ocultadas, e a rodada final verde é a referência. Typecheck, lint raiz/UI e build passaram; persistem avisos de Fast Refresh em contextos e de chunk Phaser 1.723,44 kB.
+
+O navegador interno exibiu fixture sem erro novo após reload e permitiu selecionar os quatro Inspectors. Em LIVE, bloqueou o fetch loopback com `ERR_BLOCKED_BY_CLIENT`, apesar de GET direto/proxy HTTP 200 e contrato parseado. Não há print LIVE em `qa/evidencias/M7-INTEGRATION/`. Não usar o print antigo da fixture para declarar I16 concluído.
 
 ## Fechamento documental — 2026-09-22
 

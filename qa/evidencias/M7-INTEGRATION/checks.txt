@@ -1,0 +1,29 @@
+2026-09-23 — comandos no worktree codex/m7-integration
+
+Ambiente de integração: TEST_DATABASE_URL aponta exclusivamente para office_m7_test em contêiner descartável; TEST_REDIS_URL aponta para Redis descartável. Nenhum .env foi carregado pelo agente. Portas locais podem mudar após reinício do Docker.
+
+pnpm run test:integration
+  Test Files 31 passed (31)
+  Tests 257 passed (257)
+  Duration 226.46s
+  Inclui 0014 up/down em office-projection.test.ts e database.test.ts.
+
+pnpm run typecheck
+  exit 0
+
+pnpm run lint
+  exit 0
+
+pnpm --filter ui run lint
+  exit 0; 3 avisos react(only-export-components) em SelectionContext/OfficeDataContext.
+
+pnpm run build
+  exit 0; chunk UI 1.723,44 kB minificado; aviso conhecido >500 kB.
+
+Hook do checkpoint b88ae59 (vitest run --config vitest.unit.config.ts)
+  54 arquivos / 398 testes passaram.
+
+pnpm --filter ui run test:unit
+  12 arquivos / 38 testes passaram.
+
+Rodadas anteriores com falha: timeout/contensão em testes legados; valor sintético de overflow impedindo downgrade 0010 (corrigido com limpeza transacional); Docker desligado causando ECONNREFUSED. Não foram usadas para alegar sucesso.
