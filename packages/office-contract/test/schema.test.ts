@@ -29,4 +29,11 @@ describe('I01/I03/I13 contrato browser-safe', () => {
     expect(officeStreamMessageSchema.safeParse({ type: 'SYNC_COMPLETE', cursor, payload: 'CANARY' }).success).toBe(false);
     expect(officeStreamMessageSchema.safeParse({ type: 'OFFICE_UPDATED', baseCursor: cursor, cursor, revision: '1', changes: { cashDelta: 1 } }).success).toBe(false);
   });
+  it('I06: permite datas no replacement, mas não revisão causada só por data', () => {
+    const baseCursor = encodeCursor({ epoch, revision: '1' });
+    const cursor = encodeCursor({ epoch, revision: '2' });
+    const { generatedAt, metadata, agents } = OFFICE_DEMO_FIXTURE.snapshot;
+    expect(officeStreamMessageSchema.safeParse({ type: 'OFFICE_UPDATED', baseCursor, cursor, revision: '2', changes: { agents, generatedAt, metadata } }).success).toBe(true);
+    expect(officeStreamMessageSchema.safeParse({ type: 'OFFICE_UPDATED', baseCursor, cursor, revision: '2', changes: { generatedAt, metadata } }).success).toBe(false);
+  });
 });

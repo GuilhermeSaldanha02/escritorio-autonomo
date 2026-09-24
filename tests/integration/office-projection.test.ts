@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeCursor } from '@escritorio/office-contract';
 import { createPool, migrateDown, migrateUp, migrationStatus, seedInitialAgents, type Pool } from '@escritorio/database';
 import { createLogger } from '@escritorio/shared';
-import { refreshOfficeProjection, readOfficeEnvelope, readOfficeReplay } from '../../apps/api/src/office/journal.js';
+import { refreshOfficeProjection, readOfficeEnvelope, readOfficeObservedAt, readOfficeReplay } from '../../apps/api/src/office/journal.js';
 
 function disposableUrl(): string {
   const value = process.env.TEST_DATABASE_URL;
@@ -47,6 +47,28 @@ describe('journal persistido M7', () => {
     const second = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
     expect(BigInt(second.revision)).toBe(BigInt(first.revision) + 1n);
     expect((await readOfficeEnvelope(db))?.snapshot.agents.find(a => a.id === 'DESENVOLVEDOR-001')?.state).toBe('CODING');
+  });
+  it('I06: ticks sem alteração preservam o snapshot inteiro para o mesmo cursor', async () => {
+    const before = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const after = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    expect(after.streamCursor).toBe(before.streamCursor);
+    expect(after.snapshot).toEqual(before.snapshot);
+    expect((await readOfficeEnvelope(db))?.snapshot).toEqual(before.snapshot);
+    expect(Date.parse((await readOfficeObservedAt(db))!)).toBeGreaterThan(Date.parse(before.snapshot.metadata.observedAt!));
+  });
+  it('I06: replacement do journal reconstrói o snapshot da nova revisão, inclusive datas', async () => {
+    await seedInitialAgents(db);
+    const before = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    await db.query(`UPDATE agents SET state = 'TESTING' WHERE id = 'DESENVOLVEDOR-001'`);
+    const after = await refreshOfficeProjection(db, { autonomyEnabled: false, autoSpendEnabled: false });
+    const replay = await readOfficeReplay(db, before.streamCursor);
+    expect(replay.status).toBe('OK');
+    if (replay.status !== 'OK') throw new Error('Replay indisponível');
+    const update = replay.updates.at(-1);
+    expect(update?.cursor).toBe(after.streamCursor);
+    expect(update?.changes).toMatchObject({ generatedAt: after.snapshot.generatedAt, metadata: after.snapshot.metadata });
+    expect({ ...before.snapshot, ...update?.changes }).toEqual(after.snapshot);
   });
   it('ledger separa caixa de alocações, REAL de SIMULATION', async () => {
     const opportunity = (await db.query<{ id: string }>(

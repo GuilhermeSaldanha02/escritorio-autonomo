@@ -140,9 +140,11 @@ async function oneRefresh(pool: Pool, config: OfficeConfiguration): Promise<Offi
     const head = rows[0];
     if (!head) throw new Error('Office projection migration missing');
     const { input, receipts } = await readDomain(tx, config, head.snapshot);
-    const snapshot = projectOfficeSnapshot(input);
-    const changes = changedSections(head.snapshot, snapshot);
-    const advance = Object.keys(changes).length > 0;
+    const projected = projectOfficeSnapshot(input);
+    const sectionChanges = changedSections(head.snapshot, projected);
+    const advance = Object.keys(sectionChanges).length > 0;
+    const snapshot = advance ? projected : head.snapshot ?? projected;
+    const changes: OfficeChanges = advance ? { ...sectionChanges, generatedAt: snapshot.generatedAt, metadata: snapshot.metadata } : sectionChanges;
     const revision = advance ? (BigInt(head.revision) + 1n).toString() : head.revision;
     const streamCursor = encodeCursor({ epoch: head.epoch, revision });
     if (advance) {
@@ -193,6 +195,12 @@ export async function readOfficeEnvelope(pool: Pool): Promise<OfficeEnvelope | n
   const head = rows[0];
   if (!head?.snapshot) return null;
   return officeEnvelopeSchema.parse({ contractVersion: CONTRACT_VERSION, streamCursor: encodeCursor({ epoch: head.epoch, revision: head.revision }), revision: head.revision, snapshot: head.snapshot });
+}
+
+/** Frescor do tick separado do snapshot versionado; heartbeat não altera cursor nem payload. */
+export async function readOfficeObservedAt(pool: Pool): Promise<string | null> {
+  const { rows } = await pool.query<Pick<HeadRow, 'observed_at'>>(`SELECT observed_at FROM office_projection_head WHERE singleton = true`);
+  return rows[0]?.observed_at?.toISOString() ?? null;
 }
 
 export type ReplayResult =

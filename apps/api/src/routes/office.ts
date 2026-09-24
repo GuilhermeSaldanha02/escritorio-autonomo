@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Pool } from '@escritorio/database';
 import { CONTRACT_VERSION, decodeCursor, officeStreamMessageSchema } from '@escritorio/office-contract';
-import { readOfficeEnvelope, readOfficeReplay } from '../office/journal.js';
+import { readOfficeEnvelope, readOfficeObservedAt, readOfficeReplay } from '../office/journal.js';
 
 interface OfficeRoutesDeps { pool: Pool }
 const MAX_SNAPSHOT = 256 * 1024;
@@ -104,7 +104,7 @@ export async function officeRoutes(app: FastifyInstance, { pool }: OfficeRoutesD
     const heartbeat = setInterval(() => {
       if (Date.now() - lastPong > 45_000) { socket.terminate(); return; }
       socket.ping();
-      void readOfficeEnvelope(pool).then(envelope => send({ type: 'HEARTBEAT', metadata: { observedAt: envelope?.snapshot.metadata.observedAt ?? null } }))
+      void readOfficeObservedAt(pool).then(observedAt => send({ type: 'HEARTBEAT', metadata: { observedAt } }))
         .catch(() => send({ type: 'HEARTBEAT', metadata: { observedAt: null } }));
     }, 15_000);
     socket.on('pong', () => { lastPong = Date.now(); });
