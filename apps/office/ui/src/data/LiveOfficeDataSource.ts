@@ -27,6 +27,8 @@ export class LiveOfficeDataSource implements OfficeDataSource {
   #heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   #lastMessageAt = 0;
   #attempt = 0;
+  #invalidMessages = 0;
+  #lastInvalidAt = 0;
   #incompatible = false;
 
   constructor(options: LiveOptions = {}) {
@@ -110,7 +112,7 @@ export class LiveOfficeDataSource implements OfficeDataSource {
       if (this.#socket !== socket) return;
       this.#lastMessageAt = this.#now();
       try { this.#message(JSON.parse(String(event.data))); }
-      catch { this.#resync(); }
+      catch { this.#resync(true); }
     });
     socket.addEventListener('close', () => {
       if (this.#socket !== socket) return;
@@ -135,6 +137,7 @@ export class LiveOfficeDataSource implements OfficeDataSource {
       if (snapshot.timeline.some(item => item.untrustedExternal !== undefined)) return this.#resync();
       this.#cache = snapshot;
       this.#cursor = message.cursor;
+      this.#invalidMessages = 0;
       this.#emit();
     } else if (message.type === 'SYNC_COMPLETE') {
       if (message.cursor !== this.#cursor) return this.#resync();
@@ -149,12 +152,29 @@ export class LiveOfficeDataSource implements OfficeDataSource {
     }
   }
 
-  #resync(): void {
+  #resync(invalidMessage = false): void {
+    if (invalidMessage) {
+      if (this.#now() - this.#lastInvalidAt > 60_000) this.#invalidMessages = 0;
+      this.#lastInvalidAt = this.#now();
+      this.#invalidMessages++;
+    }
     this.#clearHeartbeat();
-    this.#socket?.close();
+    const socket = this.#socket;
     this.#socket = null;
+    socket?.close();
+    if (this.#invalidMessages >= 3) {
+      this.#incompatible = true;
+      this.#clearTimer();
+      this.#setConnection('DISCONNECTED');
+      return;
+    }
     this.#setConnection('STALE');
-    void this.#fetchSnapshot(true).then(() => this.#connect()).catch(() => this.#scheduleReconnect());
+    void this.#fetchSnapshot(true).then(() => {
+      if (invalidMessage) {
+        this.#attempt = Math.max(this.#attempt, this.#invalidMessages - 1);
+        this.#scheduleReconnect();
+      } else this.#connect();
+    }).catch(() => this.#scheduleReconnect());
   }
 
   #scheduleReconnect(): void {

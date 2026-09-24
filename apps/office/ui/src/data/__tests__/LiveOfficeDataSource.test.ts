@@ -132,9 +132,40 @@ describe('LiveOfficeDataSource', () => {
     sockets[1]!.dispatchEvent(new Event('open'));
     expect(JSON.parse(sockets[1]!.sent[0]!)).toMatchObject({ afterCursor: encodeCursor({ epoch, revision: '5' }) });
     sockets[1]!.message({ type: 'UNKNOWN_WRITE', payload: 'ignored' });
-    await vi.waitFor(() => expect(sockets).toHaveLength(3));
+    await vi.waitFor(() => expect(sockets).toHaveLength(3), { timeout: 3_000 });
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect((await source.getSnapshot()).mode).toBe('LIVE');
+    unsubscribe();
+  });
+  it('I11: mensagens inválidas repetidas usam backoff e param após limite, mesmo com SYNC_COMPLETE', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => envelope() });
+    const source = new LiveOfficeDataSource({ fetcher, socketFactory: factory, random: () => 0.5, now: () => Date.now() });
+    await source.getSnapshot();
+    const unsubscribe = source.subscribe(vi.fn());
+    await Promise.resolve();
+    expect(sockets).toHaveLength(1);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const socket = sockets[attempt - 1]!;
+      socket.dispatchEvent(new Event('open'));
+      socket.message({ type: 'SYNC_COMPLETE', cursor: encodeCursor({ epoch, revision: '1' }) });
+      socket.message({ type: 'UNKNOWN_WRITE', payload: 'invalid' });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(sockets).toHaveLength(attempt);
+      if (attempt < 3) {
+        await vi.advanceTimersByTimeAsync(attempt * 1_000 - 1);
+        expect(sockets).toHaveLength(attempt);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(sockets).toHaveLength(attempt + 1);
+      }
+    }
+    expect((await source.getSnapshot()).metadata.connection).toBe('DISCONNECTED');
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(sockets).toHaveLength(3);
+    expect(fetcher).toHaveBeenCalledTimes(3);
     unsubscribe();
   });
   it('heartbeat perdido marca STALE, backoff reconecta e unsubscribe limpa timers', async () => {
