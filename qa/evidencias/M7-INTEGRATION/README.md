@@ -5,3 +5,5 @@ Rodada inicial em 2026-09-22 e correção LIVE em 2026-09-23, branch `codex/m7-i
 `console.txt` e `rede.txt` registram a rodada anterior, sanitizada. O navegador interno continua bloqueando `/office/snapshot` com `ERR_BLOCKED_BY_CLIENT`. `live-after-fetch-fix.png` mostra o Office LIVE no Chrome isolado após a correção de `Illegal invocation`; é prova do implementador, não aceite do owner nem revisão independente. As capturas da fixture e do visual aprovado permanecem em `qa/evidencias/M7-POLISH/` e não substituem prova LIVE.
 
 `i16-owner-acceptance.md` registra o aceite textual do owner em 2026-09-23 para a transição LIVE sem F5. Este aceite não é QA independente nem contém captura/console/rede da sessão do owner.
+
+`i06-i11-retest.md` registra a reprovação informada pelo QA independente, os testes red/green, comandos e resultados do autorreteste nos commits de correção. O veredito externo permanece REPROVOU até o mesmo QA retestar; o documento não é prova independente.

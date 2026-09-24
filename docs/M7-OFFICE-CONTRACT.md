@@ -53,6 +53,19 @@ snapshot}` com revisão decimal exata e cursor opaco `v2.<epoch>.<revision>`.
 invalidação. A estratégia operacional de journal/replay e seus limites estão
 em `docs/M7-INTEGRATION-PLAN.md`.
 
+Um cursor identifica **um único snapshot integral**. Tick sem alteração nas
+seções do domínio conserva o snapshot persistido, inclusive `generatedAt` e
+`metadata.observedAt`; só o `observed_at` do head avança para o heartbeat de
+frescor. Quando há revisão, o `OFFICE_UPDATED` leva também `generatedAt` e
+`metadata`, além das seções alteradas, para que o replacement reconstrua o
+mesmo snapshot do REST. Datas sozinhas não criam revisão.
+
+Mensagem WS desconhecida/malformada força resync sem avançar o cursor. Se
+repetida, o `LiveOfficeDataSource` usa espera progressiva (1 s, depois 2 s)
+e, na terceira ocorrência consecutiva sem intervalo superior a 60 s nem
+update válido, para de reconectar e marca a conexão `DISCONNECTED`. Uma
+atualização válida zera a contagem; não há fallback para DEMO.
+
 No LIVE inicial, nomes/responsabilidades dos quatro fundadores vêm somente
 de metadata pública por ID, objetivos de tarefa são templates locais e a
 timeline é uma allowlist de tipos/IDs/datas. Texto externo livre e payloads

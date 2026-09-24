@@ -7,14 +7,14 @@
 | M7-UNIT | Data source, fixture, resolver, scene model e blueprint visual | ALEGADO | rodada 2026-09-22 | 49 arquivos / 379 testes; prova do próprio implementador |
 | M7-BUILD | Typecheck, lint e build do UI | ALEGADO | rodada 2026-09-22 | todos passaram; aviso não bloqueante de chunk Phaser |
 | M7-VISUAL | Cenário, personagens, Inspector/Timeline e segurança de texto | ALEGADO | rodada 2026-09-22 | `qa/evidencias/M7-REBUILD/`; prova do próprio implementador |
-| M7I-UNIT | Contrato, projeção, adapter e cena LIVE | ALEGADO | `9163427` | 54/399 raiz e 12/39 UI; `qa/evidencias/M7-INTEGRATION/` |
-| M7I-INT | Migration, journal, snapshot, REST/WS e segurança | ALEGADO | `b88ae59` | 31/257 completos no banco descartável; migration 0014 up/down |
+| M7I-UNIT | Contrato, projeção, adapter e cena LIVE | ALEGADO; I11 reprovou no QA e aguarda reteste após `5803223` | `5803223` | 54/401 raiz e 12/40 UI; regressão de mensagens inválidas repetidas em `qa/evidencias/M7-INTEGRATION/i06-i11-retest.md` |
+| M7I-INT | Migration, journal, snapshot, REST/WS e segurança | ALEGADO; I06 reprovou no QA e aguarda reteste após `2e15b24` | `2e15b24` | 31/259 em PostgreSQL/Redis descartáveis, incluindo migration 0014 up/down; `qa/evidencias/M7-INTEGRATION/i06-i11-retest.md` |
 | M7I-VISUAL | Fixture aprovada versus LIVE | PASSOU no aceite visual do owner para atualização sem F5; QA independente pendente | `102248e` + aceite owner 2026-09-23 | Personagem/Inspector AGUARDANDO, seleção preservada, Timeline `AGENT_STATE_CHANGED`; `qa/evidencias/M7-INTEGRATION/i16-owner-acceptance.md`. Pan/zoom não individualizados no relato. |
-| M7I-MATRIX | Critérios I01–I18 | ALEGADO técnico; I16 PASSOU no aceite visual do owner, QA independente pendente | `b88ae59` + aceite owner 2026-09-23 | Matriz em `docs/M7-INTEGRATION-HANDOFF.md`; aceite owner não substitui revisão independente. |
+| M7I-MATRIX | Critérios I01–I18 | QA independente REPROVOU I06/I11; correções verdes só pelo implementador; I16 PASSOU no aceite visual do owner | `2e15b24`/`5803223` + aceite owner 2026-09-23 | Reteste do mesmo QA pendente; matriz em `docs/M7-INTEGRATION-HANDOFF.md`. |
 
 ## M7-INTEGRATION — rodada do implementador, 2026-09-23
 
-`docs/M7-INTEGRATION-HANDOFF.md` contém a matriz I01–I18 com evidência e lacunas. Nenhum item foi promovido a `PASSOU`: a revisão independente ainda não ocorreu. A migration 0014 foi validada com up/down somente em `office_m7_test` descartável; `.env` e secrets não foram lidos.
+`docs/M7-INTEGRATION-HANDOFF.md` contém a matriz I01–I18 com evidência e lacunas. Na rodada original, nenhum item técnico foi promovido a `PASSOU` pelo implementador. Depois, o QA independente reprovou I06/I11; as correções deste checkpoint não alteram esse veredito antes do reteste pelo mesmo QA. A migration 0014 foi validada com up/down somente em `office_m7_test` descartável; `.env` e secrets não foram lidos.
 
 Suíte unitária raiz: 54 arquivos/399 testes no hook de `9163427`; UI: 12/39 nesta sessão. Integração completa final anterior: 31/257, incluindo migration 0014 up/down, replay, segurança, overflow, retry 40001, retenção concorrente e slow-client, após limpeza transacional da linha sintética e restauração dos containers descartáveis. Uma rodada intermediária falhou porque o valor de overflow deixado pelo teste não cabia no downgrade 0010; outra falhou com Docker desligado. Essas falhas não são ocultadas, e a rodada final verde é a referência. Typecheck, lint raiz/UI e build passaram nesta sessão; persistem avisos de Fast Refresh em contextos e de chunk Phaser 1.723,46 kB.
 
@@ -22,7 +22,11 @@ O navegador interno exibiu fixture sem erro novo após reload e permitiu selecio
 
 ## I16 — aceite visual do owner, 2026-09-23
 
-Após uma única transição controlada no banco descartável (`DESENVOLVEDOR-001`: `IDLE` → `WAITING`, com `AGENT_STATE_CHANGED`), a leitura do snapshot confirmou revisão 2, modo LIVE, estado `WAITING` e o evento na Timeline. O owner confirmou no próprio Chrome, **sem F5**, personagem e Inspector de OCIOSO para AGUARDANDO, seleção no mesmo agente, Office aberto em LIVE e Timeline com `AGENT_STATE_CHANGED` às 23:02. Registra-se **I16 PASSOU na validação visual do owner para esse fluxo**. O relato não individualizou pan/zoom nem os quatro Inspectors LIVE; não há print/console/rede do Chrome do owner anexados. QA independente não foi executado e não foi promovido a PASSOU. Detalhes e limites: `qa/evidencias/M7-INTEGRATION/i16-owner-acceptance.md`.
+Após uma única transição controlada no banco descartável (`DESENVOLVEDOR-001`: `IDLE` → `WAITING`, com `AGENT_STATE_CHANGED`), a leitura do snapshot confirmou revisão 2, modo LIVE, estado `WAITING` e o evento na Timeline. O owner confirmou no próprio Chrome, **sem F5**, personagem e Inspector de OCIOSO para AGUARDANDO, seleção no mesmo agente, Office aberto em LIVE e Timeline com `AGENT_STATE_CHANGED` às 23:02. Registra-se **I16 PASSOU na validação visual do owner para esse fluxo**. O relato não individualizou pan/zoom nem os quatro Inspectors LIVE; não há print/console/rede do Chrome do owner anexados. Este aceite não promove I16 a PASSOU no QA independente. Detalhes e limites: `qa/evidencias/M7-INTEGRATION/i16-owner-acceptance.md`.
+
+## I06/I11 — correções após reprovação independente, 2026-09-23
+
+O QA independente encontrou (I06) mesmo cursor com snapshots diferentes e (I11) ciclo ilimitado após mensagens WS inválidas. Os testes novos falharam contra a implementação anterior e passaram após os commits `2e15b24` e `5803223`. Autorreteste: 54/401 unit raiz, 12/40 UI, 31/259 integração em `office_m7_test`/Redis descartáveis, typecheck, lint e build verdes. Estes resultados são **ALEGADO pelo implementador**; I06/I11 seguem **REPROVOU no último QA independente** até novo veredito externo. Prova e comandos: `qa/evidencias/M7-INTEGRATION/i06-i11-retest.md`.
 
 ## Fechamento documental — 2026-09-22
 
