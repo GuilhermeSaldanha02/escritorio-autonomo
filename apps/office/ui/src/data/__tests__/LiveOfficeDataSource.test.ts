@@ -107,7 +107,7 @@ describe('LiveOfficeDataSource', () => {
     const unsubscribe = source.subscribe(vi.fn());
     await Promise.resolve();
     sockets[0]!.message({ type: 'FULL_RESYNC_REQUIRED', reason: 'CURSOR_EXPIRED' });
-    await vi.waitFor(() => expect(sockets).toHaveLength(2));
+    await vi.waitFor(() => expect(sockets).toHaveLength(2), { timeout: 3_000 });
     sockets[1]!.dispatchEvent(new Event('open'));
     expect(JSON.parse(sockets[1]!.sent[0]!)).toMatchObject({ afterCursor: encodeCursor({ epoch, revision: '5' }) });
     unsubscribe();
@@ -127,12 +127,12 @@ describe('LiveOfficeDataSource', () => {
     await source.getSnapshot();
     await vi.waitFor(() => expect(sockets).toHaveLength(1));
     sockets[0]!.message({ type: 'OFFICE_UPDATED', baseCursor: encodeCursor({ epoch, revision: '3' }), cursor: encodeCursor({ epoch, revision: '4' }), revision: '4', changes: { timeline: [] } });
-    await vi.waitFor(() => expect(sockets).toHaveLength(2));
+    await vi.waitFor(() => expect(sockets).toHaveLength(2), { timeout: 4_000 });
     expect(fetcher).toHaveBeenCalledTimes(2);
     sockets[1]!.dispatchEvent(new Event('open'));
     expect(JSON.parse(sockets[1]!.sent[0]!)).toMatchObject({ afterCursor: encodeCursor({ epoch, revision: '5' }) });
     sockets[1]!.message({ type: 'UNKNOWN_WRITE', payload: 'ignored' });
-    await vi.waitFor(() => expect(sockets).toHaveLength(3), { timeout: 3_000 });
+    await vi.waitFor(() => expect(sockets).toHaveLength(3), { timeout: 4_000 });
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect((await source.getSnapshot()).mode).toBe('LIVE');
     unsubscribe();
@@ -167,6 +167,109 @@ describe('LiveOfficeDataSource', () => {
     expect(sockets).toHaveLength(3);
     expect(fetcher).toHaveBeenCalledTimes(3);
     unsubscribe();
+  });
+  it('I11: baseCursor divergente repetido limita GET e sockets, inclusive com novo subscriber', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => envelope() });
+    const source = new LiveOfficeDataSource({ fetcher, socketFactory: factory, random: () => 0.5, now: () => Date.now() });
+    await source.getSnapshot();
+    const unsubscribe = source.subscribe(vi.fn());
+    await Promise.resolve();
+    const gap = { type: 'OFFICE_UPDATED', baseCursor: encodeCursor({ epoch, revision: '3' }),
+      cursor: encodeCursor({ epoch, revision: '4' }), revision: '4', changes: { timeline: [] } };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      sockets[attempt - 1]!.message({ type: 'SYNC_COMPLETE', cursor: encodeCursor({ epoch, revision: '1' }) });
+      sockets[attempt - 1]!.message(gap);
+      const extra = source.subscribe(vi.fn());
+      await Promise.resolve();
+      expect(sockets).toHaveLength(attempt);
+      expect(fetcher).toHaveBeenCalledTimes(attempt);
+      extra();
+      if (attempt < 3) {
+        await vi.advanceTimersByTimeAsync(attempt * 1_000 - 1);
+        expect(sockets).toHaveLength(attempt);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(sockets).toHaveLength(attempt + 1);
+      }
+    }
+    expect((await source.getSnapshot()).metadata.connection).toBe('DISCONNECTED');
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(sockets).toHaveLength(3);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect((await source.getSnapshot()).mode).toBe('LIVE');
+    unsubscribe();
+  });
+  it('I11: falha de parse, gap e FULL_RESYNC_REQUIRED compartilham limite', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
+    const fetcher = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => envelope('1') })
+      .mockResolvedValue({ ok: true, json: async () => envelope('5') });
+    const source = new LiveOfficeDataSource({ fetcher, socketFactory: factory, random: () => 0.5, now: () => Date.now() });
+    await source.getSnapshot();
+    const unsubscribe = source.subscribe(vi.fn());
+    await Promise.resolve();
+    sockets[0]!.message({ type: 'UNKNOWN_WRITE' });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(sockets).toHaveLength(2);
+    sockets[1]!.message({ type: 'OFFICE_UPDATED', baseCursor: encodeCursor({ epoch, revision: '8' }),
+      cursor: encodeCursor({ epoch, revision: '9' }), revision: '9', changes: { timeline: [] } });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(sockets).toHaveLength(3);
+    sockets[2]!.message({ type: 'FULL_RESYNC_REQUIRED', reason: 'REVISION_GAP' });
+    expect((await source.getSnapshot()).metadata.connection).toBe('DISCONNECTED');
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(sockets).toHaveLength(3);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    unsubscribe();
+  });
+  it('I11: update válido após resync permite nova recuperação transitória', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
+    const fetcher = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => envelope('1') })
+      .mockResolvedValue({ ok: true, json: async () => envelope('5') });
+    const source = new LiveOfficeDataSource({ fetcher, socketFactory: factory, random: () => 0.5, now: () => Date.now() });
+    await source.getSnapshot();
+    const unsubscribe = source.subscribe(vi.fn());
+    await Promise.resolve();
+    sockets[0]!.message({ type: 'OFFICE_UPDATED', baseCursor: encodeCursor({ epoch, revision: '3' }),
+      cursor: encodeCursor({ epoch, revision: '4' }), revision: '4', changes: { timeline: [] } });
+    await vi.advanceTimersByTimeAsync(1_000);
+    sockets[1]!.message({ type: 'SYNC_COMPLETE', cursor: encodeCursor({ epoch, revision: '5' }) });
+    sockets[1]!.message({ type: 'OFFICE_UPDATED', baseCursor: encodeCursor({ epoch, revision: '5' }),
+      cursor: encodeCursor({ epoch, revision: '6' }), revision: '6', changes: { timeline: [] } });
+    expect((await source.getSnapshot()).timeline).toEqual([]);
+    sockets[1]!.message({ type: 'UNKNOWN_WRITE' });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(sockets).toHaveLength(3);
+    expect((await source.getSnapshot()).metadata.connection).not.toBe('DISCONNECTED');
+    unsubscribe();
+  });
+  it('I11: subscriber durante GET de recovery não antecipa reconnect após close', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
+    let finishRefresh!: (response: Response) => void;
+    const fetcher = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => envelope('1') })
+      .mockImplementationOnce(() => new Promise<Response>(resolve => { finishRefresh = resolve; }));
+    const source = new LiveOfficeDataSource({ fetcher, socketFactory: factory, random: () => 0.5, now: () => Date.now() });
+    await source.getSnapshot();
+    const unsubscribe = source.subscribe(vi.fn());
+    await Promise.resolve();
+    sockets[0]!.message({ type: 'FULL_RESYNC_REQUIRED', reason: 'CURSOR_EXPIRED' });
+    await vi.advanceTimersByTimeAsync(1_000);
+    const extra = source.subscribe(vi.fn());
+    finishRefresh({ ok: true, json: async () => envelope('5') } as Response);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sockets).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(900);
+    sockets[1]!.close();
+    await vi.advanceTimersByTimeAsync(1_100);
+    expect(sockets).toHaveLength(2);
+    extra(); unsubscribe();
   });
   it('heartbeat perdido marca STALE, backoff reconecta e unsubscribe limpa timers', async () => {
     vi.useFakeTimers();

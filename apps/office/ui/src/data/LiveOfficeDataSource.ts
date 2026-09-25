@@ -27,8 +27,9 @@ export class LiveOfficeDataSource implements OfficeDataSource {
   #heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   #lastMessageAt = 0;
   #attempt = 0;
-  #invalidMessages = 0;
-  #lastInvalidAt = 0;
+  #recoveryCount = 0;
+  #lastRecoveryAt = 0;
+  #recovering = false;
   #incompatible = false;
 
   constructor(options: LiveOptions = {}) {
@@ -46,7 +47,8 @@ export class LiveOfficeDataSource implements OfficeDataSource {
   subscribe(handler: OfficeEventHandler): Unsubscribe {
     this.#handlers.add(handler);
     if (this.#cache) queueMicrotask(() => { if (this.#handlers.has(handler)) handler({ type: 'SNAPSHOT_UPDATED' }); });
-    void this.#fetchSnapshot().then(() => this.#connect()).catch(() => this.#scheduleReconnect());
+    if (this.#recovering) this.#scheduleReconnect();
+    else void this.#fetchSnapshot().then(() => this.#connect()).catch(() => this.#scheduleReconnect());
     return () => {
       this.#handlers.delete(handler);
       if (this.#handlers.size === 0) {
@@ -91,7 +93,7 @@ export class LiveOfficeDataSource implements OfficeDataSource {
   }
 
   #connect(): void {
-    if (this.#handlers.size === 0 || !this.#cursor || this.#socket || this.#incompatible) return;
+    if (this.#handlers.size === 0 || !this.#cursor || this.#socket || this.#incompatible || this.#recovering) return;
     const origin = new URL(globalThis.location?.href ?? 'http://localhost:5173/');
     origin.protocol = origin.protocol === 'https:' ? 'wss:' : 'ws:';
     origin.pathname = '/office/stream';
@@ -112,7 +114,7 @@ export class LiveOfficeDataSource implements OfficeDataSource {
       if (this.#socket !== socket) return;
       this.#lastMessageAt = this.#now();
       try { this.#message(JSON.parse(String(event.data))); }
-      catch { this.#resync(true); }
+      catch { this.#resync(); }
     });
     socket.addEventListener('close', () => {
       if (this.#socket !== socket) return;
@@ -137,7 +139,8 @@ export class LiveOfficeDataSource implements OfficeDataSource {
       if (snapshot.timeline.some(item => item.untrustedExternal !== undefined)) return this.#resync();
       this.#cache = snapshot;
       this.#cursor = message.cursor;
-      this.#invalidMessages = 0;
+      this.#recoveryCount = 0;
+      this.#lastRecoveryAt = 0;
       this.#emit();
     } else if (message.type === 'SYNC_COMPLETE') {
       if (message.cursor !== this.#cursor) return this.#resync();
@@ -152,39 +155,38 @@ export class LiveOfficeDataSource implements OfficeDataSource {
     }
   }
 
-  #resync(invalidMessage = false): void {
-    if (invalidMessage) {
-      if (this.#now() - this.#lastInvalidAt > 60_000) this.#invalidMessages = 0;
-      this.#lastInvalidAt = this.#now();
-      this.#invalidMessages++;
-    }
+  #resync(): void {
+    if (this.#recovering || this.#incompatible) return;
+    if (this.#now() - this.#lastRecoveryAt > 60_000) this.#recoveryCount = 0;
+    this.#lastRecoveryAt = this.#now();
+    this.#recoveryCount++;
     this.#clearHeartbeat();
+    this.#clearTimer();
     const socket = this.#socket;
     this.#socket = null;
     socket?.close();
-    if (this.#invalidMessages >= 3) {
+    if (this.#recoveryCount >= 3) {
       this.#incompatible = true;
-      this.#clearTimer();
       this.#setConnection('DISCONNECTED');
       return;
     }
+    this.#recovering = true;
     this.#setConnection('STALE');
-    void this.#fetchSnapshot(true).then(() => {
-      if (invalidMessage) {
-        this.#attempt = Math.max(this.#attempt, this.#invalidMessages - 1);
-        this.#scheduleReconnect();
-      } else this.#connect();
-    }).catch(() => this.#scheduleReconnect());
+    this.#attempt = Math.max(this.#attempt, this.#recoveryCount - 1);
+    this.#scheduleReconnect();
   }
 
   #scheduleReconnect(): void {
-    if (this.#handlers.size === 0 || this.#incompatible || this.#reconnectTimer) return;
+    if (this.#handlers.size === 0 || this.#incompatible || this.#reconnectTimer || (this.#recovering && this.#bootstrap)) return;
     this.#setConnection('STALE');
     const delays = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000];
     const base = delays[Math.min(this.#attempt++, delays.length - 1)]!;
     this.#reconnectTimer = setTimeout(() => {
       this.#reconnectTimer = null;
-      if (this.#cache) this.#connect();
+      if (this.#recovering) {
+        void this.#fetchSnapshot(true).then(() => { this.#recovering = false; this.#connect(); })
+          .catch(() => this.#scheduleReconnect());
+      } else if (this.#cache) this.#connect();
       else void this.#fetchSnapshot().then(() => this.#connect()).catch(() => this.#scheduleReconnect());
     }, Math.round(base * (0.8 + 0.4 * this.#random())));
   }
