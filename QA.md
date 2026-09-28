@@ -7,10 +7,14 @@
 | M7-UNIT | Data source, fixture, resolver, scene model e blueprint visual | ALEGADO | rodada 2026-09-22 | 49 arquivos / 379 testes; prova do próprio implementador |
 | M7-BUILD | Typecheck, lint e build do UI | ALEGADO | rodada 2026-09-22 | todos passaram; aviso não bloqueante de chunk Phaser |
 | M7-VISUAL | Cenário, personagens, Inspector/Timeline e segurança de texto | ALEGADO | rodada 2026-09-22 | `qa/evidencias/M7-REBUILD/`; prova do próprio implementador |
-| M7I-UNIT | Contrato, projeção, adapter e cena LIVE | ALEGADO; I11 reprovou no QA e aguarda reteste após `5803223` | `5803223` | 54/401 raiz e 12/40 UI; regressão de mensagens inválidas repetidas em `qa/evidencias/M7-INTEGRATION/i06-i11-retest.md` |
-| M7I-INT | Migration, journal, snapshot, REST/WS e segurança | ALEGADO; I06 reprovou no QA e aguarda reteste após `2e15b24` | `2e15b24` | 31/259 em PostgreSQL/Redis descartáveis, incluindo migration 0014 up/down; `qa/evidencias/M7-INTEGRATION/i06-i11-retest.md` |
-| M7I-VISUAL | Fixture aprovada versus LIVE | PASSOU no aceite visual do owner para atualização sem F5; QA independente pendente | `102248e` + aceite owner 2026-09-23 | Personagem/Inspector AGUARDANDO, seleção preservada, Timeline `AGENT_STATE_CHANGED`; `qa/evidencias/M7-INTEGRATION/i16-owner-acceptance.md`. Pan/zoom não individualizados no relato. |
-| M7I-MATRIX | Critérios I01–I18 | QA independente REPROVOU I06/I11; correções verdes só pelo implementador; I16 PASSOU no aceite visual do owner | `2e15b24`/`5803223` + aceite owner 2026-09-23 | Reteste do mesmo QA pendente; matriz em `docs/M7-INTEGRATION-HANDOFF.md`. |
+| M7I-UNIT | Contrato, projeção, adapter e cena LIVE | PASSOU no QA independente final | `5ebed003` | 54/408 raiz e 12/45 UI; I11 retestado independentemente após `2789a1d` |
+| M7I-INT | Migration, journal, snapshot, REST/WS e segurança | PASSOU no QA independente final | `5ebed003` | 31/259 em PostgreSQL/Redis descartáveis, incluindo migration 0014 up/down; I06 retestado independentemente |
+| M7I-VISUAL | Fixture aprovada versus LIVE | PASSOU no aceite visual do owner; evidência considerada no fechamento independente do milestone | `102248e` + aceite owner | Personagem/Inspector AGUARDANDO, seleção preservada, Timeline `AGENT_STATE_CHANGED`, pan/zoom e quatro Inspectors confirmados pelo owner; `qa/evidencias/M7-INTEGRATION/i16-owner-acceptance.md`. Não houve sessão visual independente equivalente. |
+| M7I-MATRIX | Critérios I01–I18 | M7-INTEGRATION PASSOU no QA independente final; I16 mantém aceite visual do owner como evidência distinta | `5ebed003` + aceite owner 2026-09-23 | I06/I11 retestados independentemente; matriz e limites em `docs/M7-INTEGRATION-HANDOFF.md`. |
+
+## Fechamento independente — 2026-09-28
+
+O QA independente aprovou o candidato `5ebed003`: unitários 408/408, integração 259/259 em PostgreSQL/Redis descartáveis, UI 45/45, typecheck, lint raiz/UI e build. O último delta alterou somente um teste para corrigir lint; o teste afetado passou 6/6, seguido por lint raiz/UI e build aprovados. I06 e I11 tiveram retestes independentes aprovados. O aceite visual de I16 pelo owner permanece identificado separadamente. O owner autorizou a integração; `staging` e `main` receberam o candidato por merge sem conflito. Nenhum M8 foi iniciado.
 
 ## M7-INTEGRATION — rodada do implementador, 2026-09-23
 

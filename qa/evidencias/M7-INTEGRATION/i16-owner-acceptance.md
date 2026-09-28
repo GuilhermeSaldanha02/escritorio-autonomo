@@ -17,6 +17,10 @@ Fonte: confirmação expressa do owner nesta tarefa Codex, após observar o Offi
 - A Timeline recebeu `AGENT_STATE_CHANGED` às 23:02.
 - O owner autorizou registrar I16 como **PASSOU na validação visual do owner**, explicitando que isso não constitui QA independente.
 
+## Confirmação complementar do owner
+
+Nesta tarefa, o owner confirmou também pan e zoom funcionando, os quatro Inspectors funcionando e o retorno ao Desenvolvedor mantendo AGUARDANDO. Esta é evidência declarada pelo owner, sem sessão visual independente equivalente.
+
 ## Limites da evidência
 
-O relato não afirma individualmente preservação de pan/zoom nem seleção dos quatro Inspectors LIVE. Não foram anexados print, console ou rede da sessão do owner. A captura `live-after-fetch-fix.png` foi feita pelo implementador antes da mudança, e não é prova dessa atualização sem F5. QA independente continua pendente; não promover seus resultados a PASSOU com base neste aceite.
+Não foram anexados print, console ou rede da sessão do owner. A captura `live-after-fetch-fix.png` foi feita pelo implementador antes da mudança e não é prova dessa atualização sem F5. O aceite do owner foi considerado no fechamento do milestone, mantendo-se distinto de QA visual independente.
