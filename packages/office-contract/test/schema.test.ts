@@ -47,7 +47,8 @@ describe('I01/I03/I13 contrato browser-safe', () => {
     const metadata = { ...OFFICE_DEMO_FIXTURE.snapshot.metadata, connection: 'LIVE' as const };
     expect(officeChangesSchema.parse({ timeline: [], metadata })).toEqual({ timeline: [], metadata });
     expect(officeChangesSchema.safeParse({ timeline: [], metadata: {} }).success).toBe(false);
-    const { metadata: _omitted, ...snapshotWithoutMetadata } = OFFICE_DEMO_FIXTURE.snapshot;
+    const snapshotWithoutMetadata = structuredClone(OFFICE_DEMO_FIXTURE.snapshot);
+    Reflect.deleteProperty(snapshotWithoutMetadata, 'metadata');
     expect(officeSnapshotSchema.parse(snapshotWithoutMetadata).metadata.connection).toBe('DEMO');
   });
 });
