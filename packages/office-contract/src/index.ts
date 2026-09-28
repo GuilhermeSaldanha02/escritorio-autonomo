@@ -82,7 +82,12 @@ export const officeEnvelopeSchema = z.strictObject({
   contractVersion: z.literal(CONTRACT_VERSION), streamCursor: cursorSchema, revision: revisionSchema, snapshot: officeSnapshotSchema,
 }).refine(value => decodeCursor(value.streamCursor).revision === value.revision, 'Cursor/revision mismatch');
 /** Cada chave fornecida substitui a seção inteira; datas acompanham uma revisão de domínio, nunca a causam. */
+const replacementMetadataSchema = z.strictObject({
+  observedAt: timestampSchema.nullable(), connection: connectionSchema,
+  sections: z.strictObject({ agents: qualitySchema, workstations: qualitySchema, financial: qualitySchema, governance: qualitySchema, timeline: qualitySchema }),
+});
 export const officeChangesSchema = officeSnapshotSchema.pick({ generatedAt: true, metadata: true, agents: true, workstations: true, financial: true, governance: true, timeline: true }).partial()
+  .safeExtend({ metadata: replacementMetadataSchema.optional() })
   .refine(value => ['agents', 'workstations', 'financial', 'governance', 'timeline'].some(key => key in value), 'Empty domain changes');
 export const fullResyncReasonSchema = z.enum(['VERSION_MISMATCH', 'INVALID_CURSOR', 'EPOCH_MISMATCH', 'CURSOR_EXPIRED', 'CURSOR_AHEAD', 'REVISION_GAP', 'UNAVAILABLE']);
 export const officeStreamMessageSchema = z.discriminatedUnion('type', [

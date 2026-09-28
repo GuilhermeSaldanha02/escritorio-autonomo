@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OFFICE_DEMO_FIXTURE } from '../../../apps/office/src/fixtures.js';
-import { decodeCursor, encodeCursor, officeEnvelopeSchema, officeSnapshotSchema, officeStreamMessageSchema } from '../src/index.js';
+import { decodeCursor, encodeCursor, officeChangesSchema, officeEnvelopeSchema, officeSnapshotSchema, officeStreamMessageSchema } from '../src/index.js';
 
 const epoch = '123e4567-e89b-42d3-a456-426614174000';
 describe('I01/I03/I13 contrato browser-safe', () => {
@@ -35,5 +35,19 @@ describe('I01/I03/I13 contrato browser-safe', () => {
     const { generatedAt, metadata, agents } = OFFICE_DEMO_FIXTURE.snapshot;
     expect(officeStreamMessageSchema.safeParse({ type: 'OFFICE_UPDATED', baseCursor, cursor, revision: '2', changes: { agents, generatedAt, metadata } }).success).toBe(true);
     expect(officeStreamMessageSchema.safeParse({ type: 'OFFICE_UPDATED', baseCursor, cursor, revision: '2', changes: { generatedAt, metadata } }).success).toBe(false);
+  });
+  it('I11: changes parciais não materializam metadata nem outras seções omitidas', () => {
+    expect(officeChangesSchema.parse({ timeline: [] })).toEqual({ timeline: [] });
+    const baseCursor = encodeCursor({ epoch, revision: '1' });
+    const cursor = encodeCursor({ epoch, revision: '2' });
+    const message = officeStreamMessageSchema.parse({ type: 'OFFICE_UPDATED', baseCursor, cursor, revision: '2', changes: { timeline: [] } });
+    expect(message.type === 'OFFICE_UPDATED' && message.changes).toEqual({ timeline: [] });
+  });
+  it('I11: metadata explícita substitui a seção; snapshot completo preserva seus defaults', () => {
+    const metadata = { ...OFFICE_DEMO_FIXTURE.snapshot.metadata, connection: 'LIVE' as const };
+    expect(officeChangesSchema.parse({ timeline: [], metadata })).toEqual({ timeline: [], metadata });
+    expect(officeChangesSchema.safeParse({ timeline: [], metadata: {} }).success).toBe(false);
+    const { metadata: _omitted, ...snapshotWithoutMetadata } = OFFICE_DEMO_FIXTURE.snapshot;
+    expect(officeSnapshotSchema.parse(snapshotWithoutMetadata).metadata.connection).toBe('DEMO');
   });
 });

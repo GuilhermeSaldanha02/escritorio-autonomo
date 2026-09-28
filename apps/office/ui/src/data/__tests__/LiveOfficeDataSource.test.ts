@@ -116,6 +116,31 @@ describe('LiveOfficeDataSource', () => {
     await expect(incompatible.getSnapshot()).rejects.toThrow('incompatível');
     expect(incompatibleFactory).not.toHaveBeenCalled();
   });
+  it('I11: update parcial após resync e SYNC_COMPLETE mantém conexão LIVE', async () => {
+    vi.useFakeTimers();
+    const sockets: FakeSocket[] = [];
+    const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
+    const fetcher = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => envelope('1') })
+      .mockResolvedValueOnce({ ok: true, json: async () => envelope('5') });
+    const source = new LiveOfficeDataSource({ fetcher, socketFactory: factory, random: () => 0.5, now: () => Date.now() });
+    await source.getSnapshot();
+    const unsubscribe = source.subscribe(vi.fn());
+    await Promise.resolve();
+    sockets[0]!.message({ type: 'FULL_RESYNC_REQUIRED', reason: 'CURSOR_EXPIRED' });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(sockets).toHaveLength(2);
+    sockets[1]!.message({ type: 'SYNC_COMPLETE', cursor: encodeCursor({ epoch, revision: '5' }) });
+    expect((await source.getSnapshot()).metadata.connection).toBe('LIVE');
+    sockets[1]!.message({ type: 'OFFICE_UPDATED', baseCursor: encodeCursor({ epoch, revision: '5' }),
+      cursor: encodeCursor({ epoch, revision: '6' }), revision: '6', changes: { timeline: [] } });
+    expect((await source.getSnapshot()).metadata.connection).toBe('LIVE');
+    expect((await source.getSnapshot()).mode).toBe('LIVE');
+    const metadata = { ...envelope('5').snapshot.metadata, observedAt: '2026-09-28T00:00:00.000Z' };
+    sockets[1]!.message({ type: 'OFFICE_UPDATED', baseCursor: encodeCursor({ epoch, revision: '6' }),
+      cursor: encodeCursor({ epoch, revision: '7' }), revision: '7', changes: { timeline: [], metadata } });
+    expect((await source.getSnapshot()).metadata).toEqual(metadata);
+    unsubscribe();
+  });
   it('gap ou mensagem desconhecida não é aplicada e força snapshot novo', async () => {
     const sockets: FakeSocket[] = [];
     const factory = vi.fn(() => { const socket = new FakeSocket(); sockets.push(socket); return socket as unknown as WebSocket; });
