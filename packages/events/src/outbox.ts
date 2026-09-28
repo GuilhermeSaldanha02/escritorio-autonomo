@@ -70,6 +70,27 @@ export interface OutboxDispatcherOptions {
   publishTimeoutMs?: number;
 }
 
+// Retry do acesso ao PostgreSQL, independente do backoff de cada linha do outbox.
+// O primeiro intervalo é 4x o polling saudável; a progressão limita pressão
+// durante uma queda longa, e o jitter evita que Workers voltem juntos.
+const DB_RETRY_BASE_MS = 1_000;
+const DB_RETRY_MAX_MS = 30_000;
+const DB_RETRY_JITTER = 0.25;
+const TRANSIENT_CONNECTION_CODES = new Set([
+  'ECONNREFUSED', 'ECONNRESET', 'ECONNABORTED', 'EPIPE', 'ETIMEDOUT',
+  'ENETUNREACH', 'EHOSTUNREACH', 'EAI_AGAIN', '57P01', '57P02', '57P03',
+]);
+
+function isTransientDatabaseFailure(error: unknown): boolean {
+  if (error instanceof AggregateError) return error.errors.some(isTransientDatabaseFailure);
+  if (!(error instanceof Error)) return false;
+  const code = (error as Error & { code?: unknown }).code;
+  if (typeof code === 'string' && (code.startsWith('08') || TRANSIENT_CONNECTION_CODES.has(code))) return true;
+  // pg.Client emite esta mensagem sem `code` quando o socket cai durante uma query.
+  return /^Connection (?:terminated|ended|closed)\b/i.test(error.message)
+    || /^Client has encountered a connection error and is not queryable$/i.test(error.message);
+}
+
 /**
  * Publica no BullMQ os jobs pendentes do outbox.
  *
@@ -92,6 +113,7 @@ export class OutboxDispatcher {
   #timer: NodeJS.Timeout | undefined;
   #running: Promise<void> | undefined;
   #stopped = true;
+  #dbRetryMs = 0;
 
   constructor(options: OutboxDispatcherOptions) {
     this.#pool = options.pool;
@@ -184,13 +206,20 @@ export class OutboxDispatcher {
 
   async #tick(): Promise<void> {
     let fullBatch = false;
+    let nextDelayMs = this.#pollIntervalMs;
     try {
       const report = await this.dispatchPending();
+      this.#dbRetryMs = 0;
       fullBatch = report.dispatched + report.failed >= this.#batchSize;
     } catch (error) {
-      this.#logger.error({ err: describeError(error) }, 'dispatcher do outbox não conseguiu ler pendentes');
+      if (isTransientDatabaseFailure(error)) {
+        this.#dbRetryMs = Math.min(DB_RETRY_MAX_MS, this.#dbRetryMs === 0 ? DB_RETRY_BASE_MS : this.#dbRetryMs * 2);
+        const spread = 1 - DB_RETRY_JITTER + 2 * DB_RETRY_JITTER * Math.random();
+        nextDelayMs = Math.min(DB_RETRY_MAX_MS, Math.round(this.#dbRetryMs * spread));
+      }
+      this.#logger.error({ err: describeError(error), nextRetryMs: nextDelayMs }, 'dispatcher do outbox não conseguiu ler pendentes');
     }
     // Lote cheio: provavelmente há mais pendentes, segue sem esperar.
-    this.#schedule(fullBatch ? 0 : this.#pollIntervalMs);
+    this.#schedule(fullBatch ? 0 : nextDelayMs);
   }
 }
