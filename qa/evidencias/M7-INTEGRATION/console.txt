@@ -1,0 +1,12 @@
+2026-09-22 — observações do implementador, sem conteúdo de payloads
+
+Fixture após reload completo em navegador interno:
+- Office renderizado com seis salas, quatro agentes e Inspector funcional.
+- Console warn/error novos após o reload: [] (nenhum).
+- Caçador, Diretor, Desenvolvedor e Revisor selecionados individualmente; identidade, papel, lifecycle, estado, estação e tarefa exibidos.
+
+LIVE em navegador interno:
+- Provider exibiu "Office LIVE indisponível. Verifique a API local."
+- Diagnóstico temporário e sanitizado identificou TypeError de fetch; diagnóstico removido do código antes do checkpoint.
+- Navegação direta em 127.0.0.1 e localhost para /office/snapshot: net::ERR_BLOCKED_BY_CLIENT.
+- Não há print LIVE aprovado. Não interpretar esta limitação do navegador como sucesso do fluxo visual.

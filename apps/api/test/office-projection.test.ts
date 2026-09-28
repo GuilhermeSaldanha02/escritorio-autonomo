@@ -1,0 +1,81 @@
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { projectOfficeSnapshot, type OfficeProjectionInput } from '../src/office/projection.js';
+const at = '2026-09-22T12:00:00.000Z';
+const agent = (id = 'DESENVOLVEDOR-001', role = 'DESENVOLVEDOR') => ({ id, role, state: 'IDLE', lifecycleStatus: 'ACTIVE' as const });
+const task = (id = 'task-1', status = 'IN_PROGRESS') => ({ id, status, assignedAgentId: 'DESENVOLVEDOR-001', retryCount: 0 });
+const input = (): OfficeProjectionInput => ({ observedAt: at, agents: [agent()], tasks: [], events: [], pauses: [], governance: null, financial: { real: null, simulation: null } });
+describe('projeção pura I01/I02/I03/I05/I13', () => {
+  it('preserva existência/estado e não inventa datas ou disponibilidade', () => {
+    const data = input();
+    data.agents[0]!.state = 'FUTURE';
+    const result = projectOfficeSnapshot(data);
+    expect(result.agents).toHaveLength(1);
+    expect(result.agents[0]).toMatchObject({ state: 'UNKNOWN', stateSince: null, currentTask: null });
+    expect(result.governance.emergencyStop).toBeNull();
+    expect(result.financial.real).toBeNull();
+    expect(result.metadata.sections.financial).toBe('UNAVAILABLE');
+  });
+  it('só associa execução única e marca ambiguidade/pausa por job e entidade', () => {
+    const data = input();
+    data.tasks = [task('task-1', 'ASSIGNED')];
+    expect(projectOfficeSnapshot(data).agents[0]!.currentTask).toBeNull();
+    data.tasks = [task()];
+    expect(projectOfficeSnapshot(data).agents[0]!.currentTask).toMatchObject({ id: 'task-1', startedAt: null });
+    data.tasks.push(task('task-2'));
+    expect(projectOfficeSnapshot(data).agents[0]).toMatchObject({ currentTask: null, metadata: { quality: 'AMBIGUOUS' } });
+    data.tasks.pop();
+    data.pauses = [{ jobName: 'review-task', entityId: 'task-1', resumedAt: null }];
+    expect(projectOfficeSnapshot(data).agents[0]!.currentTask).not.toBeNull();
+    data.pauses[0]!.jobName = 'develop-task';
+    expect(projectOfficeSnapshot(data).agents[0]).toMatchObject({ currentTask: null, metadata: { availability: 'PAUSED' } });
+    data.pauses[0]!.resumedAt = at;
+    expect(projectOfficeSnapshot(data).agents[0]!.currentTask).not.toBeNull();
+  });
+  it('revisor exige evidência aplicada da tarefa e identidade reais', () => {
+    const data = input();
+    data.agents = [agent('REVISOR-001', 'REVISOR'), agent('REVISOR-002', 'REVISOR')];
+    data.tasks = [task('task-1', 'IN_REVIEW')];
+    const event = { id: 'evt-1', type: 'AGENT_STATE_CHANGED', occurredAt: at, taskId: 'task-1', agentId: 'REVISOR-001', newState: 'REVIEWING', applied: false };
+    data.events = [event];
+    expect(projectOfficeSnapshot(data).agents.every(a => a.currentTask === null)).toBe(true);
+    event.applied = true;
+    const result = projectOfficeSnapshot(data);
+    expect(result.agents[0]!.currentTask?.id).toBe('task-1');
+    expect(result.agents[1]!.currentTask).toBeNull();
+  });
+  it('layout completo, SLEEP conserva estação, ARCHIVED e ausentes não ocupam', () => {
+    const data = input();
+    data.agents[0]!.lifecycleStatus = 'SLEEP';
+    const layout = JSON.parse(readFileSync(new URL('../../../assets/office/layout.json', import.meta.url), 'utf8')) as { rooms: { workstations: { workstationId: string }[] }[] };
+    const result = projectOfficeSnapshot(data);
+    expect(result.workstations.map(w => w.id)).toEqual(layout.rooms.flatMap(r => r.workstations.map(w => w.workstationId)));
+    expect(result.workstations.filter(w => w.status === 'OCCUPIED')).toHaveLength(1);
+    data.agents[0]!.lifecycleStatus = 'ARCHIVED';
+    expect(projectOfficeSnapshot(data).workstations.every(w => w.assignedAgentId === null)).toBe(true);
+    expect(projectOfficeSnapshot(data).agents[0]!.workstationId).toBeUndefined();
+  });
+  it('não infere atividade de Caçador/Diretor e mantém governança fornecida', () => {
+    const data = input();
+    data.agents = [agent('CACADOR-001', 'CACADOR'), agent('DIRETOR-001', 'DIRETOR')];
+    data.tasks = [task()];
+    data.governance = { autonomyEnabled: false, autoSpendEnabled: false, emergencyStop: null, circuitBreaker: 'OPEN', breakers: [{ scopeType: 'AGENT', scopeKey: 'REVISOR-001', state: 'OPEN' }] };
+    const result = projectOfficeSnapshot(data);
+    expect(result.agents.every(a => a.currentTask === null && a.state === 'IDLE')).toBe(true);
+    expect(result.governance).toMatchObject(data.governance);
+  });
+  it('timeline usa últimos 50 IDs válidos e templates, sem canários externos', () => {
+    const data = input();
+    Object.assign(data.agents[0]!, { displayName: 'SECRET_CANARY', responsibility: '<script>XSS</script>' });
+    data.tasks = [Object.assign(task(), { objective: 'SECRET_CANARY' })];
+    data.events = Array.from({ length: 55 }, (_, i) => ({ id: `evt-${String(i).padStart(2, '0')}`, type: 'TASK_STARTED', occurredAt: at, payload: { token: 'SECRET_CANARY', stdout: '<script>XSS</script>' } }));
+    data.events.push({ id: 'invalid', type: 'AI_CALL_RECORDED', occurredAt: at }, { id: '<script>', type: 'TASK_STARTED', occurredAt: at }, { id: 'bad-date', type: 'TASK_STARTED', occurredAt: 'invalid' });
+    const before = JSON.stringify(data);
+    const result = projectOfficeSnapshot(data);
+    expect(result.timeline).toHaveLength(50);
+    expect(result.timeline[0]!.id).toBe('evt-54');
+    expect(JSON.stringify(result)).not.toMatch(/SECRET_CANARY|<script>|payload|stdout/);
+    expect(JSON.stringify(data)).toBe(before);
+    expect(projectOfficeSnapshot(data)).toEqual(result);
+  });
+});
