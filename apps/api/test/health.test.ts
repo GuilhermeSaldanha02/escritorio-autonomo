@@ -59,6 +59,16 @@ describe('GET /health', () => {
     expect(JSON.stringify(body)).not.toContain('connect ECONNREFUSED');
   });
 
+  it('volta de 503 para 200 quando uma consulta posterior reconecta', async () => {
+    let available = false;
+    app = await serverWith(() => available ? ok() : refused(), ok);
+    expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(503);
+    available = true;
+    const recovered = await app.inject({ method: 'GET', url: '/health' });
+    expect(recovered.statusCode).toBe(200);
+    expect(recovered.json()).toMatchObject({ status: 'ok', database: { status: 'connected' } });
+  });
+
   it('erro sem código (ex.: ioredis offline) vira UNAVAILABLE, nunca "Error" nem a mensagem', async () => {
     const bare: Probe = async () => {
       throw new Error("Stream isn't writeable and enableOfflineQueue options is false");
