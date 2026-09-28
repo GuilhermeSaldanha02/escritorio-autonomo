@@ -1,0 +1,102 @@
+{
+  "$schema": "./palette-schema.json",
+  "version": "1.0.0",
+  "theme": "dark-corporate-lofi",
+  "colors": {
+    "background": "#0f172a",
+    "surface": "#1e293b",
+    "surfaceElevated": "#334155",
+    "border": "#475569",
+    "gridLine": "#1e293b80",
+    "textPrimary": "#f8fafc",
+    "textSecondary": "#94a3b8",
+    "textMuted": "#64748b"
+  },
+  "categories": {
+    "IDLE": {
+      "label": "Ocioso",
+      "color": "#64748b",
+      "badgeBg": "#1e293b",
+      "badgeText": "#94a3b8",
+      "icon": "circle-dot"
+    },
+    "SEARCHING": {
+      "label": "Pesquisando",
+      "color": "#06b6d4",
+      "badgeBg": "#083344",
+      "badgeText": "#67e8f9",
+      "icon": "search"
+    },
+    "ANALYZING": {
+      "label": "Analisando",
+      "color": "#8b5cf6",
+      "badgeBg": "#2e1065",
+      "badgeText": "#c4b5fd",
+      "icon": "brain"
+    },
+    "WORKING": {
+      "label": "Trabalhando",
+      "color": "#10b981",
+      "badgeBg": "#064e3b",
+      "badgeText": "#6ee7b7",
+      "icon": "cpu"
+    },
+    "WAITING": {
+      "label": "Aguardando",
+      "color": "#eab308",
+      "badgeBg": "#422006",
+      "badgeText": "#fde047",
+      "icon": "hourglass"
+    },
+    "BLOCKED": {
+      "label": "Bloqueado",
+      "color": "#ef4444",
+      "badgeBg": "#450a0a",
+      "badgeText": "#fca5a5",
+      "icon": "shield-alert"
+    },
+    "COMPLETED": {
+      "label": "Concluído",
+      "color": "#22c55e",
+      "badgeBg": "#052e16",
+      "badgeText": "#86efac",
+      "icon": "check-circle"
+    },
+    "FAILED": {
+      "label": "Falhou",
+      "color": "#dc2626",
+      "badgeBg": "#450a0a",
+      "badgeText": "#f87171",
+      "icon": "x-circle"
+    },
+    "SLEEPING": {
+      "label": "Dormindo",
+      "color": "#3b82f6",
+      "badgeBg": "#172554",
+      "badgeText": "#93c5fd",
+      "icon": "moon"
+    },
+    "UNKNOWN": {
+      "label": "Desconhecido",
+      "color": "#94a3b8",
+      "badgeBg": "#1e293b",
+      "badgeText": "#cbd5e1",
+      "icon": "help-circle"
+    }
+  },
+  "states": {
+    "IDLE": { "category": "IDLE", "label": "OCIOSO", "color": "#64748b" },
+    "SEARCHING": { "category": "SEARCHING", "label": "PESQUISANDO", "color": "#06b6d4" },
+    "ANALYZING": { "category": "ANALYZING", "label": "ANALISANDO", "color": "#8b5cf6" },
+    "THINKING": { "category": "ANALYZING", "label": "PENSANDO", "color": "#a855f7" },
+    "CODING": { "category": "WORKING", "label": "PROGRAMANDO", "color": "#10b981" },
+    "TESTING": { "category": "WORKING", "label": "TESTANDO", "color": "#14b8a6" },
+    "REVIEWING": { "category": "WORKING", "label": "REVISANDO", "color": "#f59e0b" },
+    "WAITING": { "category": "WAITING", "label": "AGUARDANDO", "color": "#eab308" },
+    "BLOCKED": { "category": "BLOCKED", "label": "BLOQUEADO", "color": "#ef4444" },
+    "SUCCESS": { "category": "COMPLETED", "label": "CONCLUÍDO", "color": "#22c55e" },
+    "FAILED": { "category": "FAILED", "label": "FALHOU", "color": "#dc2626" },
+    "SLEEP": { "category": "SLEEPING", "label": "DORMINDO", "color": "#3b82f6" },
+    "UNKNOWN": { "category": "UNKNOWN", "label": "DESCONHECIDO", "color": "#94a3b8" }
+  }
+}

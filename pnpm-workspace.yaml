@@ -2,6 +2,7 @@ packages:
   - apps/api
   - apps/cli
   - apps/worker
+  - apps/office/ui
   - packages/*
   - infrastructure/database
 

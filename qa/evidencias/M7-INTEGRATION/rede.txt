@@ -1,0 +1,8 @@
+2026-09-22 — observações sanitizadas, ambiente descartável
+
+GET http://127.0.0.1:3000/office/snapshot: HTTP 200.
+GET http://127.0.0.1:5173/office/snapshot (proxy Vite, terminal): HTTP 200, application/json.
+Envelope: contractVersion=2.0.0; snapshot.mode=LIVE; streamCursor presente; schema parse válido; untrustedExternal ausente.
+Navegador interno: ERR_BLOCKED_BY_CLIENT para /office/snapshot em 127.0.0.1 e localhost.
+Integração WS: GET→SUBSCRIBE replay, reconnect com último cursor e nova instância da API passaram em testes automatizados.
+Segurança: Host/Origin inválidos, POST e comando STOP recusados; comando WS acima de 2 KiB encerrado; canários sintéticos ausentes do snapshot.

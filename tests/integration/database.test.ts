@@ -15,6 +15,9 @@ const TABLES = [
   'financial_ledger',
   'memories',
   'model_calls',
+  'office_event_receipts',
+  'office_projection_head',
+  'office_stream_entries',
   'opportunities',
   'outbox',
   'paused_work',
@@ -51,6 +54,11 @@ describe('migrations', () => {
   });
 
   it('são reversíveis e reaplicáveis', async () => {
+    expect(await migrateDown(pool, 1)).toEqual(['0014_office_projection']);
+    for (const table of ['office_event_receipts', 'office_projection_head', 'office_stream_entries']) {
+      expect(await publicTables()).not.toContain(table);
+    }
+    expect(await publicTables()).toContain('agents');
     expect(await migrateDown(pool, 1)).toEqual(['0013_autonomia']);
     for (const table of ['emergency_stop_events', 'scheduled_executions', 'circuit_breaker_events', 'agent_lifecycle_transitions', 'paused_work']) {
       expect(await publicTables()).not.toContain(table);
@@ -112,6 +120,7 @@ describe('migrations', () => {
       '0011_memoria_performance',
       '0012_memories_scope_trust',
       '0013_autonomia',
+      '0014_office_projection',
     ]);
     expect(await migrateUp(pool)).toEqual([]);
     expect(await migrationStatus(pool)).toEqual({
@@ -129,6 +138,7 @@ describe('migrations', () => {
         '0011_memoria_performance',
         '0012_memories_scope_trust',
         '0013_autonomia',
+        '0014_office_projection',
       ],
       pending: [],
     });

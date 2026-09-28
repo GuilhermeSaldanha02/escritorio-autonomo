@@ -4,6 +4,7 @@ import { Governor, loadConstitution } from '@escritorio/governor';
 import { createLogger, describeError, exitOnShutdownSignals, loadConfig, loadEnvFile } from '@escritorio/shared';
 import { buildServer } from './server.js';
 import { createApiShutdown } from './shutdown.js';
+import { startOfficeProjector } from './office/projector.js';
 
 /**
  * A API sobe mesmo com PostgreSQL ou Redis fora do ar: é o /health que
@@ -13,7 +14,8 @@ async function main(): Promise<void> {
   loadEnvFile();
   const config = loadConfig();
   const logger = createLogger('api', config.LOG_LEVEL);
-  const governor = new Governor(loadConstitution(config.CONSTITUTION_PATH));
+  const constitution = loadConstitution(config.CONSTITUTION_PATH);
+  const governor = new Governor(constitution);
 
   const pool = createPool(config.DATABASE_URL, logger, 'escritorio-api');
   const redis = createRedisConnection(config.REDIS_URL, 'producer', 'escritorio-api');
@@ -41,6 +43,11 @@ async function main(): Promise<void> {
   });
   exitOnShutdownSignals(process, shutdown, (code) => process.exit(code), logger);
 
+  const stopOfficeProjector = startOfficeProjector(pool, {
+    autonomyEnabled: constitution.autonomia.AUTONOMY_ENABLED,
+    autoSpendEnabled: constitution.permissoes.AUTO_SPEND,
+  }, logger);
+  app.addHook('onClose', stopOfficeProjector);
   await app.listen({ host: config.API_HOST, port: config.API_PORT });
   logger.info({ aiMode: config.AI_MODE }, 'API pronta');
 }
