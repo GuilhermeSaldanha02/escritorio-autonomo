@@ -110,6 +110,50 @@ describe('OutboxDispatcher: retry de infraestrutura', () => {
     expect(dispatch).toHaveBeenCalledTimes(2);
   });
 
+  it('aplica backoff ao timeout sem code do pg-pool e reseta após sucesso', async () => {
+    const pgPoolTimeout = () => new Error('timeout exceeded when trying to connect');
+    const { dispatch, error } = started([
+      pgPoolTimeout(), pgPoolTimeout(), empty, pgPoolTimeout(),
+      new Error('timeout exceeded when trying to connect elsewhere'), empty,
+    ]);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(error).toHaveBeenLastCalledWith(
+      expect.objectContaining({ nextRetryMs: 1_000 }),
+      'dispatcher do outbox não conseguiu ler pendentes',
+    );
+    await vi.advanceTimersByTimeAsync(250);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(749);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(dispatch).toHaveBeenCalledTimes(2);
+    expect(error).toHaveBeenLastCalledWith(
+      expect.objectContaining({ nextRetryMs: 2_000 }),
+      'dispatcher do outbox não conseguiu ler pendentes',
+    );
+
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(dispatch).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(dispatch).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(dispatch).toHaveBeenCalledTimes(4);
+    expect(error).toHaveBeenLastCalledWith(
+      expect.objectContaining({ nextRetryMs: 1_000 }),
+      'dispatcher do outbox não conseguiu ler pendentes',
+    );
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(dispatch).toHaveBeenCalledTimes(5);
+    expect(error).toHaveBeenLastCalledWith(
+      expect.objectContaining({ nextRetryMs: 250 }),
+      'dispatcher do outbox não conseguiu ler pendentes',
+    );
+    await vi.advanceTimersByTimeAsync(250);
+    expect(dispatch).toHaveBeenCalledTimes(6);
+  });
+
   it('mantém falhas não transitórias visíveis sem confundi-las com queda de infraestrutura', async () => {
     const { dispatch, error } = started([new TypeError('erro de programação'), empty]);
     await vi.advanceTimersByTimeAsync(0);

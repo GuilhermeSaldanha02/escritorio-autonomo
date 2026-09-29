@@ -86,9 +86,10 @@ function isTransientDatabaseFailure(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const code = (error as Error & { code?: unknown }).code;
   if (typeof code === 'string' && (code.startsWith('08') || TRANSIENT_CONNECTION_CODES.has(code))) return true;
-  // pg.Client emite esta mensagem sem `code` quando o socket cai durante uma query.
+  // pg.Client e pg-pool podem emitir estas mensagens sem `code`.
   return /^Connection (?:terminated|ended|closed)\b/i.test(error.message)
-    || /^Client has encountered a connection error and is not queryable$/i.test(error.message);
+    || /^Client has encountered a connection error and is not queryable$/i.test(error.message)
+    || error.message === 'timeout exceeded when trying to connect';
 }
 
 /**
